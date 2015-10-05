@@ -24,29 +24,33 @@
 #define HTTP_POST "POST"
 #define HTTP_HEAD "HEAD"
 
-
 /**
  * This function gets the request method from the message
  * returns NULL if the request method is not supported 
  */
 char * getRequestType(char * request) {
-	char r[10];
-	int i = 0;
-	memset(&r, 0, sizeof(r));
-	while (request[i] != ' ') {
-		r[i] = request[i];
-		i++;
-	}
-	if (strcmp(HTTP_GET, r) == 0) {
+	if (strcmp(HTTP_GET, request) == 0) {
  		return HTTP_GET;
-	} else if (strcmp(r, HTTP_POST) == 0) { 
+	} else if (strcmp(HTTP_POST, request) == 0) { 
 		return HTTP_POST;
-	} else if (strcmp(r, HTTP_HEAD) == 0) {
+	} else if (strcmp(HTTP_HEAD, request) == 0) {
 		return HTTP_HEAD;
 	} else {
 		return NULL;
 	}
 }
+
+/** 
+ * This function does not leak memory
+ */ 
+char * getRequestUrl(char * url) {
+	char host[]= "http://localhost";
+	strcat(host, url);
+	url = strdup(host);
+	return url;
+}
+
+
 
 int main(int argc, char **argv)
 {
@@ -126,7 +130,22 @@ int main(int argc, char **argv)
 			/* Print the message to stdout and flush. */
 			fprintf(stdout, "Received:\n%s\n", message);
 			fflush(stdout);
-
+		 
+			gchar ** split = g_strsplit(message, " ", -1);
+			guint size = g_strv_length(split);
+				
+			int i = 0;
+			for (; i < size ; i++) {
+				// fprintf(stdout, "%s\n", split[i]);
+				// fflush(stdout);
+			}
+			
+			char * requestType = getRequestType(split[0]);
+			char * requestUrl = getRequestUrl(split[1]);	
+			fprintf(stdout, "Request type  %s\n", requestType);
+			fprintf(stdout, "Request url %s\n", requestUrl);
+			g_strfreev(split);
+			
 			/* Log request from user */
 			time_t now;                                        			
             time(&now);
