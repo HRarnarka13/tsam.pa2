@@ -50,6 +50,13 @@ char * getRequestUrl(char * url) {
 	return url;
 }
 
+char * generateHtmlFile(const char * url, const char * IPAddress, int port, char * result) {
+	char html[] = "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>";
+	// strcat(html, url);
+	strcat(html, "</h1>");
+	result = strdup(html);
+	return result;
+}
 
 
 int main(int argc, char **argv)
@@ -142,8 +149,12 @@ int main(int argc, char **argv)
 			
 			char * requestType = getRequestType(split[0]);
 			char * requestUrl = getRequestUrl(split[1]);	
+			char * htmlDoc;
 			fprintf(stdout, "Request type  %s\n", requestType);
 			fprintf(stdout, "Request url %s\n", requestUrl);
+			fprintf(stdout, "Html: \n %s\n", generateHtmlFile(requestUrl, 
+												inet_ntoa(client.sin_addr), client.sin_port,
+												htmlDoc));
 			g_strfreev(split);
 			
 			/* Log request from user */
