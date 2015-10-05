@@ -16,27 +16,32 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <syslog.h>
 #include <time.h>
 #include <arpa/inet.h>
+#include <glib.h>
 
 #define HTTP_GET "GET"
 #define HTTP_POST "POST"
 #define HTTP_HEAD "HEAD"
 
+
+/**
+ * This function gets the request method from the message
+ * returns NULL if the request method is not supported 
+ */
 char * getRequestType(char * request) {
 	char r[10];
 	int i = 0;
 	memset(&r, 0, sizeof(r));
 	while (request[i] != ' ') {
 		r[i] = request[i];
+		i++;
 	}
-	
-	if (strcmp(r, "GET") == 1) {
+	if (strcmp(HTTP_GET, r) == 0) {
  		return HTTP_GET;
-	} else if (strcmp(r, "POST") == 1) { 
+	} else if (strcmp(r, HTTP_POST) == 0) { 
 		return HTTP_POST;
-	} else if (strcmp(r, "HEAD") == 1) {
+	} else if (strcmp(r, HTTP_HEAD) == 0) {
 		return HTTP_HEAD;
 	} else {
 		return NULL;
@@ -135,7 +140,7 @@ int main(int argc, char **argv)
 			} else {		
 				fprintf(f, "%s : ", buf);
 				fprintf(f, "%s:%d ", inet_ntoa(client.sin_addr), client.sin_port);
-				fprintf(f, "%s\n",getRequestType(message));			
+				fprintf(f, "%s\n", getRequestType(message));			
 				fprintf(f, "connfd: %d\n", connfd);
 			}
 			fclose(f);
