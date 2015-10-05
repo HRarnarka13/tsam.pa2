@@ -16,9 +16,9 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <syslog.h>
 #include <time.h>
 #include <arpa/inet.h>
+#include <glib.h>
 
 #define HTTP_GET "GET"
 #define HTTP_POST "POST"
@@ -37,8 +37,6 @@ char * getRequestType(char * request) {
 		r[i] = request[i];
 		i++;
 	}
-	fprintf(stdout, "Request: %s\n", r);
-	fflush(stdout);	
 	if (strcmp(HTTP_GET, r) == 0) {
  		return HTTP_GET;
 	} else if (strcmp(r, HTTP_POST) == 0) { 
