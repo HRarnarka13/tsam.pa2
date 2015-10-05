@@ -135,7 +135,7 @@ int main(int argc, char **argv)
 			} else {		
 				fprintf(f, "%s : ", buf);
 				fprintf(f, "%s:%d ", inet_ntoa(client.sin_addr), client.sin_port);
-				// fprintf(f, "%s\n", );			
+				fprintf(f, "%s\n",getRequestType(message));			
 				fprintf(f, "connfd: %d\n", connfd);
 			}
 			fclose(f);
