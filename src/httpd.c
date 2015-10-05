@@ -13,14 +13,51 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <string.h>
-#include <unistd.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <syslog.h>
+#include <time.h>
+#include <arpa/inet.h>
+
+#define HTTP_GET "GET"
+#define HTTP_POST "POST"
+#define HTTP_HEAD "HEAD"
+
+char * getRequestType(char * request) {
+	char r[10];
+	int i = 0;
+	memset(&r, 0, sizeof(r));
+	while (request[i] != ' ') {
+		r[i] = request[i];
+	}
+	
+	if (strcmp(r, "GET") == 1) {
+ 		return HTTP_GET;
+	} else if (strcmp(r, "POST") == 1) { 
+		return HTTP_POST;
+	} else if (strcmp(r, "HEAD") == 1) {
+		return HTTP_HEAD;
+	} else {
+		return NULL;
+	}
+}
 
 int main(int argc, char **argv)
 {
+	int i = 0;
+	fprintf(stdout, "Print out the params, nr of params=%d \n", argc);
+	fflush(stdout);
+	while (argv[i] != NULL) {
+		fprintf(stdout, "argv[%d] : %s \n", i, argv[i]);
+		fflush(stdout);
+		i++;
+	}
 	int sockfd;
 	struct sockaddr_in server, client;
 	char message[512];
+	int my_port = 0;
+	my_port = atoi(argv[1]);
 
 	/* Create and bind a UDP socket */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -29,7 +66,7 @@ int main(int argc, char **argv)
 	/* Network functions need arguments in network byte order instead of
 	   host byte order. The macros htonl, htons convert the values, */
 	server.sin_addr.s_addr = htonl(INADDR_ANY);
-	server.sin_port = htons(32000);
+	server.sin_port = htons(my_port);
 	bind(sockfd, (struct sockaddr *) &server, (socklen_t) sizeof(server));
 
 	/* Before we can accept messages, we have to listen to the port. We allow one
@@ -84,6 +121,24 @@ int main(int argc, char **argv)
 			/* Print the message to stdout and flush. */
 			fprintf(stdout, "Received:\n%s\n", message);
 			fflush(stdout);
+
+			/* Log request from user */
+			time_t now;                                        			
+            time(&now);
+            char buf[sizeof "2011-10-08T07:07:09Z"];
+            strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+			
+			FILE *f = fopen("log.txt", "a");
+			if (f == NULL) {
+				fprintf(stdout, "Error when opening log file");
+				fflush(stdout);
+			} else {		
+				fprintf(f, "%s : ", buf);
+				fprintf(f, "%s:%d ", inet_ntoa(client.sin_addr), client.sin_port);
+				// fprintf(f, "%s\n", );			
+				fprintf(f, "connfd: %d\n", connfd);
+			}
+			fclose(f);
 		} else {
 			fprintf(stdout, "No message in five seconds.\n");
 			fflush(stdout);
