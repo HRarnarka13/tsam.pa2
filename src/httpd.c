@@ -23,11 +23,11 @@
 #define HTTP_GET "GET"
 #define HTTP_POST "POST"
 #define HTTP_HEAD "HEAD"
-#define HTML_MAX_SIZE 250
+#define HTML_MAX_SIZE 1024
 #define URL_SIZE 50
 #define PORT_SIZE 6
 #define TYPE_SIZE 10
-#define HEAD_SIZE 250
+#define HEAD_SIZE 512
 
 /**
  * This function gets the request method from the message
@@ -50,10 +50,20 @@ void getRequestUrl(char url[], char message[]) {
 }
 
 void headGenerator(char head[], int contentLength){
-	char c_contentLength[10];
+	char c_contentLength[8];
+	time_t now;                                        			
+    time(&now);
+    char buf[sizeof "2011-10-08T07:07:09Z"];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
 	// Write the content length as string into headLength
-	snprintf(c_contentLength, 10, "%d", contentLength); 
-	strcat(head, "HTTP/1.1 200 OK\n");
+	snprintf(c_contentLength, 8, "%d", contentLength); 
+	// \r\n is carriage return + line feed
+	strcat(head, "HTTP/1.1 200 OK\r\n");
+	strcat(head, "Date: ");
+	strcat(head, buf);
+	strcat(head, "\r\n");
+	strcat(head, "Server: Angel server 1.0\r\n");
+	strcat(head, "Content-Type: text/html\r\n");
 	strcat(head, "Content-length: ");
 	strcat(head, c_contentLength);
 	strcat(head, "\r\n\r\n");
@@ -63,6 +73,10 @@ void headHandler(int connfd){
 	memset(&head, 0, HEAD_SIZE);
 	headGenerator(head, 0);	
 	write(connfd, head, (size_t) sizeof(head));
+}
+
+void postHandler(int connfd, char message[]){
+	
 }
 /**
  *	This function handles GET request. It constructs the html string and sends it 
@@ -158,9 +172,6 @@ int main(int argc, char **argv)
 			   below. */
 			ssize_t n = read(connfd, message, sizeof(message) - 1);
 
-			/* Send the message back. */
-			write(connfd, message, (size_t) n);
-
 			/* We should close the connection. */
 
 			/* Zero terminate the message, otherwise
@@ -183,30 +194,17 @@ int main(int argc, char **argv)
 			fflush(stdout);
 
 			if (strcmp(HTTP_GET, requestType) == 0) {
-				fprintf(stdout, "calling getHandler\n");
 				getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
 			} else if (strcmp(HTTP_POST, requestType) == 0) { 
-				// TODO: implement and call postHandler
-				fprintf(stdout, "calling postHandler\n");
+				postHandler(connfd, message);	
 			} else if (strcmp(HTTP_HEAD, requestType) == 0) {
 				headHandler(connfd);
-				// TODO: implement and call gethandler
 				fprintf(stdout, "calling headHandler");
 			} else {
 				fprintf(stdout, "Request url %s\n", requestUrl);
 			}
 			fflush(stdout);
-			//htmlDoc[2] = requestUrl;
-			/*
-			generateHtml(htmlDoc, requestUrl);
-			int j = 0;
-			for(; htmlDoc[j] != '\0'; j++){
-				fprintf(stdout, "%s", htmlDoc[j]);
-			}*/
-
-			//fprintf(stdout, "Html: \n %s", );
-			//g_strfreev(split);
-			
+		
 			/* Log request from user */
 			time_t now;                                        			
             time(&now);
