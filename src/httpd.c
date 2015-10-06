@@ -273,7 +273,7 @@ int main(int argc, char **argv)
 			fprintf(stdout, "Received:\n%s\n", message);
 			fflush(stdout);
 
-			FILE *f = fopen("log.txt", "a");
+			FILE *f = fopen("httpd.log", "a");
 			typeHandler(connfd, message, f, client);		 
 			// close the connection
 			shutdown(connfd, SHUT_RDWR);

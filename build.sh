@@ -1,3 +1,3 @@
 #!/bin/bash
-rm log.txt
+rm httpd.log
 make -C ./src
