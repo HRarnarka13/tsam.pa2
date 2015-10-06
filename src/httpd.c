@@ -113,27 +113,45 @@ void getHandler(int connfd, char url[], int port, char IP[]){
 	snprintf(portBuff, PORT_SIZE, "%d", port);
 
 	// Generate the html
-
-	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>");
-	strcat(html, url);
-	strcat(html, "</h1>");
-	strcat(html, "\n\t\t<p>\n\t\t\tPort: ");
-	strcat(html, portBuff);
-	strcat(html, "<br>");	
-	strcat(html, "\n\t\t\tClientID: ");
-	strcat(html, IP);
-	strcat(html, "<br>");	
-	// if the string contains a query, get and inject the param and value
-	// to the html document
 	if(strchr(url, '?')){
 		getQueryString(url, queryString);
 		getParameters(parameter, value, queryString);
-		strcat(html, "\n\t\t\t");
-		strcat(html, parameter);
-		strcat(html, " = ");
-		strcat(html, value);
-	} 
+		// if the string contains a query, get and inject the param and value
+		// to the html document
+		if(strcmp("bg", parameter) == 0){
+			strcat(html, "<!DOCTYPE html>\n<html>\n\t<body");
+			strcat(html, " style='background-color:");
+			strcat(html, value);			
+			strcat(html,"'>");
+			strcat(html, "\n\t\t<p>\n\t\t\t");
+			strcat(html, portBuff);
+			strcat(html, "<br>\n\t\t\t");	
+			strcat(html, IP);
+			strcat(html, "<br>");	
 
+		} else{
+			strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
+			strcat(html, "\n\t\t<p>\n\t\t\t");
+			strcat(html, portBuff);
+			strcat(html, "<br>");	
+			strcat(html, "\n\t\t\tClientID: ");
+			strcat(html, IP);
+			strcat(html, "<br>\n\t\t\t");	
+			strcat(html, parameter);
+			strcat(html, " = ");
+			strcat(html, value);
+		}
+	} else{
+		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>");
+		strcat(html, url);
+		strcat(html, "</h1>");
+		strcat(html, "\n\t\t<p>\n\t\t\tPort: ");
+		strcat(html, portBuff);
+		strcat(html, "<br>");	
+		strcat(html, "\n\t\t\tClientID: ");
+		strcat(html, IP);
+		strcat(html, "<br>");	
+	}
 	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
 	headGenerator(head, strlen(html));
 	strcat(head, html);
