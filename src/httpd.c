@@ -59,9 +59,9 @@ void getHandler(int connfd, char requestType[], char url[], int port, char IP[])
 	memset(&html, 0, HTML_MAX_SIZE);
 	memset(&portBuff, 0, PORT_SIZE);
 
-	//Write the port number as string into portBuff
-	snprintf(portBuff, PORT_SIZE, "%d", portBuff);
-
+	// Write the port number as string into portBuff
+	snprintf(portBuff, PORT_SIZE, "%d", port);
+	// Generate the html 
 	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>");
 	strcat(html, url);
 	strcat(html, "</h1>");
@@ -70,34 +70,10 @@ void getHandler(int connfd, char requestType[], char url[], int port, char IP[])
 	strcat(html, "</p>");
 	strcat(html, "\n\t\t<p>ClientID: ");
 	strcat(html, IP);
-	strcat(html, "</p>\n\t</body>\n</html>");
+	strcat(html, "</p>\n\t</body>\n</html>\n");
 
 	write(connfd, html, (size_t) sizeof(html));
 }
-/*
-char * generateHtmlFile(char * url, char * IPAddress, int port, char * result) {
-	char * html = (char *) malloc(100);
-	html = "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>";
-	char * temp = (char *) malloc(100);
-	temp = strdup(url);
-	strcat(html, temp);
-	//strcat(html, "</h1>");
-	result = strdup(html);
-	free(temp);
-	return result;
-}*/
-/*
-void generateHtml(char* html[], char* url, int clientID){
-	html[0] = "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>";
-	html[1] = url;
-	html[2] = "</h1>\n\t\t";
-	html[3] = "<p>";	
-	html[3] = "Client ID: ";
-	html[3] = itoa(clientID);
-	html[3] = '\0';
-	html[3] = '\0';
-}*/
-
 
 int main(int argc, char **argv)
 {
