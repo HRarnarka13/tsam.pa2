@@ -23,40 +23,80 @@
 #define HTTP_GET "GET"
 #define HTTP_POST "POST"
 #define HTTP_HEAD "HEAD"
+#define HTML_MAX_SIZE 250
+#define URL_SIZE 50
+#define PORT_SIZE 6
+#define TYPE_SIZE 10
+
 
 /**
  * This function gets the request method from the message
  * returns NULL if the request method is not supported 
  */
-char * getRequestType(char * request) {
-	if (strcmp(HTTP_GET, request) == 0) {
- 		return HTTP_GET;
-	} else if (strcmp(HTTP_POST, request) == 0) { 
-		return HTTP_POST;
-	} else if (strcmp(HTTP_HEAD, request) == 0) {
-		return HTTP_HEAD;
-	} else {
-		return NULL;
-	}
+void getRequestType(char request[], char message[]) {
+	gchar ** split = g_strsplit(message, " ", -1);
+	strcat(request, split[0]);
+	g_strfreev(split);
 }
 
 /** 
  * This function does not leak memory
  */ 
-char * getRequestUrl(char * url) {
-	char host[]= "http://localhost";
-	strcat(host, url);
-	url = strdup(host);
-	return url;
+void getRequestUrl(char url[], char message[]) {
+	gchar ** split = g_strsplit(message, " ", -1);
+	strcat(url, "http://localhost");
+	strcat(url, split[1]);
+	g_strfreev(split);
 }
 
-char * generateHtmlFile(const char * url, const char * IPAddress, int port, char * result) {
-	char html[] = "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>";
-	// strcat(html, url);
+/**
+ *	This function handles GET request. It constructs the html string and sends it 
+ *	to the client.
+ */
+void getHandler(int connfd, char requestType[], char url[], int port, char IP[]){
+	char html[HTML_MAX_SIZE];
+	char portBuff[PORT_SIZE];
+	memset(&html, 0, HTML_MAX_SIZE);
+	memset(&portBuff, 0, PORT_SIZE);
+
+	//Write the port number as string into portBuff
+	snprintf(portBuff, PORT_SIZE, "%d", portBuff);
+
+	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>");
+	strcat(html, url);
 	strcat(html, "</h1>");
-	result = strdup(html);
-	return result;
+	strcat(html, "\n\t\t<p>Port: ");
+	strcat(html, portBuff);
+	strcat(html, "</p>");
+	strcat(html, "\n\t\t<p>ClientID: ");
+	strcat(html, IP);
+	strcat(html, "</p>\n\t</body>\n</html>");
+
+	write(connfd, html, (size_t) sizeof(html));
 }
+/*
+char * generateHtmlFile(char * url, char * IPAddress, int port, char * result) {
+	char * html = (char *) malloc(100);
+	html = "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>";
+	char * temp = (char *) malloc(100);
+	temp = strdup(url);
+	strcat(html, temp);
+	//strcat(html, "</h1>");
+	result = strdup(html);
+	free(temp);
+	return result;
+}*/
+/*
+void generateHtml(char* html[], char* url, int clientID){
+	html[0] = "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>";
+	html[1] = url;
+	html[2] = "</h1>\n\t\t";
+	html[3] = "<p>";	
+	html[3] = "Client ID: ";
+	html[3] = itoa(clientID);
+	html[3] = '\0';
+	html[3] = '\0';
+}*/
 
 
 int main(int argc, char **argv)
@@ -127,8 +167,6 @@ int main(int argc, char **argv)
 			write(connfd, message, (size_t) n);
 
 			/* We should close the connection. */
-			shutdown(connfd, SHUT_RDWR);
-			close(connfd);
 
 			/* Zero terminate the message, otherwise
 			   printf may access memory outside of the
@@ -138,24 +176,41 @@ int main(int argc, char **argv)
 			fprintf(stdout, "Received:\n%s\n", message);
 			fflush(stdout);
 		 
-			gchar ** split = g_strsplit(message, " ", -1);
-			guint size = g_strv_length(split);
-				
-			int i = 0;
-			for (; i < size ; i++) {
-				// fprintf(stdout, "%s\n", split[i]);
-				// fflush(stdout);
-			}
-			
-			char * requestType = getRequestType(split[0]);
-			char * requestUrl = getRequestUrl(split[1]);	
-			char * htmlDoc;
+			char requestType[TYPE_SIZE];
+			char requestUrl[URL_SIZE];
+			memset(&requestType, 0, TYPE_SIZE);
+			memset(&requestUrl, 0, URL_SIZE);
+			//char htmlDoc[HTML_MAX_SIZE];
+			getRequestType(requestType, message);
+			getRequestUrl(requestUrl, message);	
 			fprintf(stdout, "Request type  %s\n", requestType);
 			fprintf(stdout, "Request url %s\n", requestUrl);
-			fprintf(stdout, "Html: \n %s\n", generateHtmlFile(requestUrl, 
-												inet_ntoa(client.sin_addr), client.sin_port,
-												htmlDoc));
-			g_strfreev(split);
+			fflush(stdout);
+
+			if (strcmp(HTTP_GET, requestType) == 0) {
+				fprintf(stdout, "calling getHandler\n");
+				getHandler(connfd, requestType, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
+			} else if (strcmp(HTTP_POST, requestType) == 0) { 
+				// TODO: implement and call postHandler
+				fprintf(stdout, "calling postHandler\n");
+			} else if (strcmp(HTTP_HEAD, requestType) == 0) {
+				//postHandler();
+				// TODO: implement and call gethandler
+				fprintf(stdout, "calling headHandler");
+			} else {
+				fprintf(stdout, "Request url %s\n", requestUrl);
+			}
+			fflush(stdout);
+			//htmlDoc[2] = requestUrl;
+			/*
+			generateHtml(htmlDoc, requestUrl);
+			int j = 0;
+			for(; htmlDoc[j] != '\0'; j++){
+				fprintf(stdout, "%s", htmlDoc[j]);
+			}*/
+
+			//fprintf(stdout, "Html: \n %s", );
+			//g_strfreev(split);
 			
 			/* Log request from user */
 			time_t now;                                        			
@@ -170,9 +225,11 @@ int main(int argc, char **argv)
 			} else {		
 				fprintf(f, "%s : ", buf);
 				fprintf(f, "%s:%d ", inet_ntoa(client.sin_addr), client.sin_port);
-				fprintf(f, "%s\n", getRequestType(message));			
+				fprintf(f, "%s\n", requestType);			
 				fprintf(f, "connfd: %d\n", connfd);
 			}
+			shutdown(connfd, SHUT_RDWR);
+			close(connfd);	
 			fclose(f);
 		} else {
 			fprintf(stdout, "No message in five seconds.\n");
