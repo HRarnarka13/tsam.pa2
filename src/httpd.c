@@ -78,6 +78,20 @@ void headHandler(int connfd){
 void postHandler(int connfd, char message[]){
 	
 }
+
+void getQueryString(char url[], char queryString[]){
+	gchar ** split = g_strsplit(url, "?", -1);
+	strcat(queryString, split[1]);
+	g_strfreev(split);
+
+}
+
+void getParameters(char parameter[], char value[], char queryString[]){
+	gchar ** split = g_strsplit(queryString, "=", -1);
+	strcat(parameter, split[0]);
+	strcat(value, split[1]);
+	g_strfreev(split);
+}
 /**
  *	This function handles GET request. It constructs the html string and sends it 
  *	to the client.
@@ -86,26 +100,87 @@ void getHandler(int connfd, char url[], int port, char IP[]){
 	char html[HTML_MAX_SIZE];
 	char portBuff[PORT_SIZE];
 	char head[HEAD_SIZE];
+	char queryString[URL_SIZE];
+	char parameter[URL_SIZE];
+	char value[URL_SIZE];
 	memset(&html, 0, HTML_MAX_SIZE);
 	memset(&portBuff, 0, PORT_SIZE);
 	memset(&head, 0, HEAD_SIZE);
-
-	// Write the port number as string into portBuff
+	memset(&queryString, 0, URL_SIZE);
+	memset(&parameter, 0, URL_SIZE);
+	memset(&value, 0, URL_SIZE);
+	// Check for a query string
 	snprintf(portBuff, PORT_SIZE, "%d", port);
-	// Generate the html 
+
+	// Generate the html
+
 	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>");
 	strcat(html, url);
 	strcat(html, "</h1>");
-	strcat(html, "\n\t\t<p>Port: ");
+	strcat(html, "\n\t\t<p>\n\t\t\tPort: ");
 	strcat(html, portBuff);
-	strcat(html, "</p>");
-	strcat(html, "\n\t\t<p>ClientID: ");
+	strcat(html, "<br>");	
+	strcat(html, "\n\t\t\tClientID: ");
 	strcat(html, IP);
-	strcat(html, "</p>\n\t</body>\n</html>\n");
+	strcat(html, "<br>");	
+	// if the string contains a query, get and inject the param and value
+	// to the html document
+	if(strchr(url, '?')){
+		getQueryString(url, queryString);
+		getParameters(parameter, value, queryString);
+		strcat(html, "\n\t\t\t");
+		strcat(html, parameter);
+		strcat(html, " = ");
+		strcat(html, value);
+	} 
+
+	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
 	headGenerator(head, strlen(html));
 	strcat(head, html);
 
 	write(connfd, head, (size_t) sizeof(html));
+}
+void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client){
+
+	char requestType[TYPE_SIZE];
+	char requestUrl[URL_SIZE];
+	memset(&requestType, 0, TYPE_SIZE);
+	memset(&requestUrl, 0, URL_SIZE);
+	//char htmlDoc[HTML_MAX_SIZE];
+	getRequestType(requestType, message);
+	getRequestUrl(requestUrl, message);	
+	fprintf(stdout, "Request type  %s\n", requestType);
+	fprintf(stdout, "Request url %s\n", requestUrl);
+	fflush(stdout);
+
+	if (strcmp(HTTP_GET, requestType) == 0) {
+		getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
+	} else if (strcmp(HTTP_POST, requestType) == 0) { 
+		postHandler(connfd, message);	
+	} else if (strcmp(HTTP_HEAD, requestType) == 0) {
+		headHandler(connfd);
+		fprintf(stdout, "calling headHandler");
+	} else {
+		fprintf(stdout, "Request url %s\n", requestUrl);
+	}
+	fflush(stdout);
+
+	/* Log request from user */
+	time_t now;                                        			
+    time(&now);
+    char buf[sizeof "2011-10-08T07:07:09Z"];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+
+	//FILE *f = fopen("log.txt", "a");
+	if (f == NULL) {
+		fprintf(stdout, "Error when opening log file");
+		fflush(stdout);
+	} else {		
+		fprintf(f, "%s : ", buf);
+		fprintf(f, "%s:%d ", inet_ntoa(client.sin_addr), client.sin_port);
+		fprintf(f, "%s\n", requestType);			
+		fprintf(f, "connfd: %d\n", connfd);
+	}
 }
 
 int main(int argc, char **argv)
@@ -172,8 +247,6 @@ int main(int argc, char **argv)
 			   below. */
 			ssize_t n = read(connfd, message, sizeof(message) - 1);
 
-			/* We should close the connection. */
-
 			/* Zero terminate the message, otherwise
 			   printf may access memory outside of the
 			   string. */
@@ -181,46 +254,10 @@ int main(int argc, char **argv)
 			/* Print the message to stdout and flush. */
 			fprintf(stdout, "Received:\n%s\n", message);
 			fflush(stdout);
-		 
-			char requestType[TYPE_SIZE];
-			char requestUrl[URL_SIZE];
-			memset(&requestType, 0, TYPE_SIZE);
-			memset(&requestUrl, 0, URL_SIZE);
-			//char htmlDoc[HTML_MAX_SIZE];
-			getRequestType(requestType, message);
-			getRequestUrl(requestUrl, message);	
-			fprintf(stdout, "Request type  %s\n", requestType);
-			fprintf(stdout, "Request url %s\n", requestUrl);
-			fflush(stdout);
 
-			if (strcmp(HTTP_GET, requestType) == 0) {
-				getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
-			} else if (strcmp(HTTP_POST, requestType) == 0) { 
-				postHandler(connfd, message);	
-			} else if (strcmp(HTTP_HEAD, requestType) == 0) {
-				headHandler(connfd);
-				fprintf(stdout, "calling headHandler");
-			} else {
-				fprintf(stdout, "Request url %s\n", requestUrl);
-			}
-			fflush(stdout);
-		
-			/* Log request from user */
-			time_t now;                                        			
-            time(&now);
-            char buf[sizeof "2011-10-08T07:07:09Z"];
-            strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
-			
 			FILE *f = fopen("log.txt", "a");
-			if (f == NULL) {
-				fprintf(stdout, "Error when opening log file");
-				fflush(stdout);
-			} else {		
-				fprintf(f, "%s : ", buf);
-				fprintf(f, "%s:%d ", inet_ntoa(client.sin_addr), client.sin_port);
-				fprintf(f, "%s\n", requestType);			
-				fprintf(f, "connfd: %d\n", connfd);
-			}
+			typeHandler(connfd, message, f, client);		 
+			// close the connection
 			shutdown(connfd, SHUT_RDWR);
 			close(connfd);	
 			fclose(f);
