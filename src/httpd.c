@@ -27,7 +27,7 @@
 #define URL_SIZE 50
 #define PORT_SIZE 6
 #define TYPE_SIZE 10
-
+#define HEAD_SIZE 250
 
 /**
  * This function gets the request method from the message
@@ -49,15 +49,32 @@ void getRequestUrl(char url[], char message[]) {
 	g_strfreev(split);
 }
 
+void headGenerator(char head[], int contentLength){
+	char c_contentLength[10];
+	// Write the content length as string into headLength
+	snprintf(c_contentLength, 10, "%d", contentLength); 
+	strcat(head, "HTTP/1.1 200 OK\n");
+	strcat(head, "Content-length: ");
+	strcat(head, c_contentLength);
+	strcat(head, "\r\n\r\n");
+}
+void headHandler(int connfd){
+	char head[HEAD_SIZE];
+	memset(&head, 0, HEAD_SIZE);
+	headGenerator(head, 0);	
+	write(connfd, head, (size_t) sizeof(head));
+}
 /**
  *	This function handles GET request. It constructs the html string and sends it 
  *	to the client.
  */
-void getHandler(int connfd, char requestType[], char url[], int port, char IP[]){
+void getHandler(int connfd, char url[], int port, char IP[]){
 	char html[HTML_MAX_SIZE];
 	char portBuff[PORT_SIZE];
+	char head[HEAD_SIZE];
 	memset(&html, 0, HTML_MAX_SIZE);
 	memset(&portBuff, 0, PORT_SIZE);
+	memset(&head, 0, HEAD_SIZE);
 
 	// Write the port number as string into portBuff
 	snprintf(portBuff, PORT_SIZE, "%d", port);
@@ -71,8 +88,10 @@ void getHandler(int connfd, char requestType[], char url[], int port, char IP[])
 	strcat(html, "\n\t\t<p>ClientID: ");
 	strcat(html, IP);
 	strcat(html, "</p>\n\t</body>\n</html>\n");
+	headGenerator(head, strlen(html));
+	strcat(head, html);
 
-	write(connfd, html, (size_t) sizeof(html));
+	write(connfd, head, (size_t) sizeof(html));
 }
 
 int main(int argc, char **argv)
@@ -165,12 +184,12 @@ int main(int argc, char **argv)
 
 			if (strcmp(HTTP_GET, requestType) == 0) {
 				fprintf(stdout, "calling getHandler\n");
-				getHandler(connfd, requestType, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
+				getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
 			} else if (strcmp(HTTP_POST, requestType) == 0) { 
 				// TODO: implement and call postHandler
 				fprintf(stdout, "calling postHandler\n");
 			} else if (strcmp(HTTP_HEAD, requestType) == 0) {
-				//postHandler();
+				headHandler(connfd);
 				// TODO: implement and call gethandler
 				fprintf(stdout, "calling headHandler");
 			} else {
