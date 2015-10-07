@@ -23,11 +23,15 @@
 #define HTTP_GET "GET"
 #define HTTP_POST "POST"
 #define HTTP_HEAD "HEAD"
+
 #define HTML_MAX_SIZE 1024
-#define URL_SIZE 50
+#define URL_SIZE 256
 #define PORT_SIZE 6
-#define TYPE_SIZE 10
-#define HEAD_SIZE 512
+#define TYPE_SIZE 12
+#define HEAD_MAX_SIZE 1024
+#define SEGMENT_MAX_SIZE 2048
+#define PARAMETER 24
+#define VALUE 16
 
 /**
  * This function gets the request method from the message
@@ -40,7 +44,7 @@ void getRequestType(char request[], char message[]) {
 }
 
 /** 
- * This function does not leak memory
+ * This function gets the URL requested by the client.
  */ 
 void getRequestUrl(char url[], char message[]) {
 	gchar ** split = g_strsplit(message, " ", -1);
@@ -49,6 +53,20 @@ void getRequestUrl(char url[], char message[]) {
 	g_strfreev(split);
 }
 
+/**
+ * This funstion splits a message and gets the head from it.
+ */
+void getHeadField(char message[], char head[]){
+	gchar ** split = g_strsplit(message, "\r\n\r\n", -1);
+	if(split[1] != NULL){
+		strcat(head, split[0]);
+	} 
+	g_strfreev(split);
+}
+
+/**
+ * This funstion splits a message and gets the data from it.
+ */
 void getDataField(char message[], char data[]){
 	gchar ** split = g_strsplit(message, "\r\n\r\n", -1);
 	if(split[1] != NULL){
@@ -57,6 +75,28 @@ void getDataField(char message[], char data[]){
 	g_strfreev(split);
 }
 
+/**
+ * This function splits the URI and gets the query part of it.
+ */
+void getQueryString(char url[], char queryString[]){
+	gchar ** split = g_strsplit(url, "?", -1);
+	strcat(queryString, split[1]);
+	g_strfreev(split);
+}
+
+/**
+ * This function gets the parameter and it's value from a query string.
+ */
+void getParameters(char parameter[], char value[], char queryString[]){
+	gchar ** split = g_strsplit(queryString, "=", -1);
+	strcat(parameter, split[0]);
+	strcat(value, split[1]);
+	g_strfreev(split);
+}
+
+/**
+ * This function generates a simple header.
+ */
 void headGenerator(char head[], int contentLength){
 	char c_contentLength[8];
 	time_t now;                                        			
@@ -74,26 +114,38 @@ void headGenerator(char head[], int contentLength){
 	strcat(head, "Content-Type: text/html\r\n");
 	strcat(head, "Content-length: ");
 	strcat(head, c_contentLength);
+	/*The string \r\n\r\n distinguishes between the head and data field.*/
 	strcat(head, "\r\n\r\n");
 }
+
+/**
+ * This function handles request of type HEAD. 
+ */
 void headHandler(int connfd){
-	char head[HEAD_SIZE];
-	memset(&head, 0, HEAD_SIZE);
+	char head[HEAD_MAX_SIZE];
+	memset(&head, 0, HEAD_MAX_SIZE);
 	headGenerator(head, 0);	
 	write(connfd, head, (size_t) sizeof(head));
 }
 
+/**
+ * This function handles requests of type POST.
+ */
 void postHandler(int connfd, char url[], int port, char IP[], char message[]){
 	char html[HTML_MAX_SIZE];
 	char data[HTML_MAX_SIZE];
 	char portBuff[PORT_SIZE];
 	char head[HTML_MAX_SIZE];
+	char segment[SEGMENT_MAX_SIZE];
 	memset(&html, 0, HTML_MAX_SIZE);
-	memset(&head, 0, HTML_MAX_SIZE);
+	memset(&head, 0, HEAD_MAX_SIZE);
 	memset(&portBuff, 0, HTML_MAX_SIZE);
 	memset(&data, 0, HTML_MAX_SIZE);
+	memset(&segment, 0, SEGMENT_MAX_SIZE);
+
 	snprintf(portBuff, PORT_SIZE, "%d", port);
 	getDataField(message,data);
+
 	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
 	strcat(html, "\n\t\t<p>\n\t\t\t");
 	strcat(html, portBuff);
@@ -103,41 +155,33 @@ void postHandler(int connfd, char url[], int port, char IP[], char message[]){
 	strcat(html, "<br>\n\t\t\t");	
 	strcat(html, data);
 	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
+
 	headGenerator(head, strlen(html));
 	strcat(head, html);
-	write(connfd, head, (size_t) sizeof(head));
+	strcat(segment, head);
+	write(connfd, segment, (size_t) sizeof(segment));
 }
 
-void getQueryString(char url[], char queryString[]){
-	gchar ** split = g_strsplit(url, "?", -1);
-	strcat(queryString, split[1]);
-	g_strfreev(split);
-
-}
-
-void getParameters(char parameter[], char value[], char queryString[]){
-			gchar ** split = g_strsplit(queryString, "=", -1);
-			strcat(parameter, split[0]);
-			strcat(value, split[1]);
-			g_strfreev(split);
-		}
-		/**
-		 *	This function handles GET request. It constructs the html string and sends it 
-		 *	to the client.
-		 */
-		void getHandler(int connfd, char url[], int port, char IP[]){
-			char html[HTML_MAX_SIZE];
+/**
+ *	This function handles GET request. It constructs the html string and sends it 
+ *	to the client. The html varies depending on if there is a query in the URL, 
+ *	if it is to set a background color of the page or if it is just a regular URL.
+ */
+void getHandler(int connfd, char url[], int port, char IP[]){
+	char html[HTML_MAX_SIZE];
 	char portBuff[PORT_SIZE];
-	char head[HEAD_SIZE];
+	char head[HEAD_MAX_SIZE];
 	char queryString[URL_SIZE];
-	char parameter[URL_SIZE];
-	char value[URL_SIZE];
+	char parameter[PARAMETER];
+	char value[VALUE];
+	char segment[SEGMENT_MAX_SIZE];
 	memset(&html, 0, HTML_MAX_SIZE);
 	memset(&portBuff, 0, PORT_SIZE);
-	memset(&head, 0, HEAD_SIZE);
+	memset(&head, 0, HEAD_MAX_SIZE);
 	memset(&queryString, 0, URL_SIZE);
 	memset(&parameter, 0, URL_SIZE);
 	memset(&value, 0, URL_SIZE);
+	memset(&segment, 0, SEGMENT_MAX_SIZE);
 	// Check for a query string
 	snprintf(portBuff, PORT_SIZE, "%d", port);
 
@@ -184,9 +228,16 @@ void getParameters(char parameter[], char value[], char queryString[]){
 	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
 	headGenerator(head, strlen(html));
 	strcat(head, html);
+	strcat(segment, head);
 
-	write(connfd, head, (size_t) sizeof(head));
+	write(connfd, segment, (size_t) sizeof(segment));
 }
+
+/**
+ * This function checks what type of request is received from the client.
+ * It handles the types GET,POST and HEAD. For each type, the function calls
+ * the appropriate type handler, creates a timestamp and logs to the httpd.log file.
+ */
 void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client){
 
 	char requestType[TYPE_SIZE];
@@ -199,13 +250,11 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 	fprintf(stdout, "Request type  %s\n", requestType);
 	fprintf(stdout, "Request url %s\n", requestUrl);
 	fflush(stdout);
-
+	/* Check which type of request received from the client.*/
 	if (strcmp(HTTP_GET, requestType) == 0) {
 		getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
 	} else if (strcmp(HTTP_POST, requestType) == 0) { 
 	postHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr), message);
-	//the data section of the request is the text to inject into the html
-	// TODO: we have to get the data, delimiter
 	} else if (strcmp(HTTP_HEAD, requestType) == 0) {
 		headHandler(connfd);
 	} else {
@@ -231,16 +280,20 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 	}
 }
 
+/**
+ * Main function, sets up and tears down a TCP connection.
+ */
 int main(int argc, char **argv)
 {
-	int i = 0;
+	/*int i = 0;
 	fprintf(stdout, "Print out the params, nr of params=%d \n", argc);
 	fflush(stdout);
 	while (argv[i] != NULL) {
 		fprintf(stdout, "argv[%d] : %s \n", i, argv[i]);
 		fflush(stdout);
 		i++;
-	}
+	}*/
+
 	int sockfd;
 	struct sockaddr_in server, client;
 	char message[512];
