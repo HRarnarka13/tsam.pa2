@@ -130,6 +130,56 @@ void headGenerator(char head[], int contentLength){
 	/*The string \r\n\r\n distinguishes between the head and data field.*/
 	strcat(head, "\r\n\r\n");
 }
+/**
+ * Html is the array to append the html code 
+ * color is a string like "bg=red"
+ */
+void generateHtmlBody(char html[], char color[]) {
+	if (color) {
+		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body");
+		strcat(html, " style='background-color:");
+
+		gchar ** keyValue = g_strsplit(color, "=", -1);
+		if(keyValue[0] == NULL || keyValue[1] == NULL) {
+			strcat(html, "white");
+		} else {
+			strcat(html, keyValue[1]);
+		}		
+		g_strfreev(keyValue);
+		strcat(html,"'>");
+	} else {
+		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
+	}
+}
+
+/*
+ * appends the html containg the url, ip address and port number of the request into
+ * the html.
+ */ 
+void generateHtmlRequestInfo(char html[], char url[], char ip[], int port) {
+	
+	strcat(html, "\n\t\t<h1>");
+	strcat(html, url);
+	strcat(html, "</h1>");
+	strcat(html, "\n\t\t<p>");
+	strcat(html, "ClientIP: ");
+	strcat(html, ip);
+	strcat(html, " Port: ");
+	
+	char portBuff[PORT_SIZE];
+	memset(&portBuff, 0, sizeof(portBuff));
+	snprintf(portBuff, PORT_SIZE, "%d", port);
+	strcat(html, portBuff);
+	strcat(html, "</p>");	
+}
+
+void generateHtmlData(char html[], char data[]) {
+	strcat(html, "\n\t\t<p>");
+	strcat(html, data);
+	strcat(html, "</p>");
+}
+
+
 
 /**
  * This function handles request of type HEAD. 
@@ -319,7 +369,7 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 	if (strcmp(HTTP_GET, requestType) == 0) {
 		getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
 	} else if (strcmp(HTTP_POST, requestType) == 0) { 
-	postHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr), message);
+		postHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr), message);
 	} else if (strcmp(HTTP_HEAD, requestType) == 0) {
 		headHandler(connfd);
 	} else {
