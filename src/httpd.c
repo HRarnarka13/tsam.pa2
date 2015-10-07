@@ -33,6 +33,7 @@
 #define SEGMENT_MAX_SIZE 2048
 #define PARAMETER 24
 #define VALUE 16
+#define COOKIE_SIZE 24
 
 /**
  * This function gets the request method from the message
@@ -107,6 +108,9 @@ void getParameters(char parameters[PARAMETER][PARAMETER], char queryString[]){
 	g_strfreev(splitAmpersand);
 }
 
+void setCookie(){
+	
+}
 /**
  * This function generates a simple header.
  */
@@ -306,14 +310,27 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 
 	char requestType[TYPE_SIZE];
 	char requestUrl[URL_SIZE];
+	char cookie[COOKIE_SIZE];
 	memset(&requestType, 0, TYPE_SIZE);
 	memset(&requestUrl, 0, URL_SIZE);
+	memset(&cookie, 0, COOKIE_SIZE);
+	//getHeadField(message, head);
 	//char htmlDoc[HTML_MAX_SIZE];
 	getRequestType(requestType, message);
 	getRequestUrl(requestUrl, message);	
 	fprintf(stdout, "Request type  %s\n", requestType);
 	fprintf(stdout, "Request url %s\n", requestUrl);
 	fflush(stdout);
+		
+/*	gchar ** splitColor = g_strsplit(requestUrl, "?", -1);
+	if(strcmp(splitColor[0], "color") == 0) {
+		gchar ** splitCookie = g_strsplit(splitColor[1], "&", -1);
+		strcpy(cookie, splitCookie[1]);
+		g_strfreev(splitCookie);
+		fprintf(stdout, "Cookie: %s\n", cookie);
+		fflush(stdout);
+	}
+	g_strfreev(splitColor);*/
 	/* Check which type of request received from the client.*/
 	
 	if (strcmp(HTTP_GET, requestType) == 0) {
