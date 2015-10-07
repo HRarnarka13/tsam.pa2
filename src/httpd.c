@@ -190,13 +190,8 @@ void generateHtmlData(char html[], char data[]) {
 void getBackgroundColor(char parameters[PARAMETER][PARAMETER], char bg[]){
 	int i = 0;
 	while(parameters[i][0]) {
-		fprintf(stdout, "parameters[%d] :  %s \n", i,  parameters[i]);
-		fflush(stdout);	
 		gchar ** key = g_strsplit(parameters[i], "=", -1);
 		if(key[0] && strcmp("bg", key[0]) == 0) {
-			fprintf(stdout, "Key0 %s \n", key[0]);
-			fprintf(stdout, "Key1 %s \n", key[1]);
-			fflush(stdout);	
 			strcat(bg, parameters[i]);
 		}
 		g_strfreev(key);
