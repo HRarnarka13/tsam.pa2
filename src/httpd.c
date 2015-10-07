@@ -116,17 +116,17 @@ void getQueryString(char url[], char queryString[]){
 }
 
 void getParameters(char parameter[], char value[], char queryString[]){
-	gchar ** split = g_strsplit(queryString, "=", -1);
-	strcat(parameter, split[0]);
-	strcat(value, split[1]);
-	g_strfreev(split);
-}
-/**
- *	This function handles GET request. It constructs the html string and sends it 
- *	to the client.
- */
-void getHandler(int connfd, char url[], int port, char IP[]){
-	char html[HTML_MAX_SIZE];
+			gchar ** split = g_strsplit(queryString, "=", -1);
+			strcat(parameter, split[0]);
+			strcat(value, split[1]);
+			g_strfreev(split);
+		}
+		/**
+		 *	This function handles GET request. It constructs the html string and sends it 
+		 *	to the client.
+		 */
+		void getHandler(int connfd, char url[], int port, char IP[]){
+			char html[HTML_MAX_SIZE];
 	char portBuff[PORT_SIZE];
 	char head[HEAD_SIZE];
 	char queryString[URL_SIZE];
