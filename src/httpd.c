@@ -40,9 +40,12 @@
  * returns NULL if the request method is not supported 
  */
 void getRequestType(char request[], char message[]) {
-	gchar ** split = g_strsplit(message, " ", -1);
+		gchar ** split = g_strsplit(message, " ", -1);
 	strcat(request, split[0]);
 	g_strfreev(split);
+	fprintf(stdout, "print i request\n");
+	fflush(stdout);
+
 }
 
 /** 
@@ -107,10 +110,11 @@ void getParameters(char parameters[PARAMETER][PARAMETER], char queryString[]){
 	}		
 	g_strfreev(splitAmpersand);
 }
-
+/*
 void setCookie(){
 	
-}
+}*/
+
 /**
  * This function generates a simple header.
  */
@@ -181,6 +185,23 @@ void generateHtmlData(char html[], char data[]) {
 	strcat(html, "\n\t\t<p>");
 	strcat(html, data);
 	strcat(html, "</p>");
+}
+
+void getBackgroundColor(char parameters[PARAMETER][PARAMETER], char bg[]){
+	int i = 0;
+	while(parameters[i][0]) {
+		fprintf(stdout, "parameters[%d] :  %s \n", i,  parameters[i]);
+		fflush(stdout);	
+		gchar ** key = g_strsplit(parameters[i], "=", -1);
+		if(key[0] && strcmp("bg", key[0]) == 0) {
+			fprintf(stdout, "Key0 %s \n", key[0]);
+			fprintf(stdout, "Key1 %s \n", key[1]);
+			fflush(stdout);	
+			strcat(bg, parameters[i]);
+		}
+		g_strfreev(key);
+		i++;
+	}
 }
 
 void generateHtmlParameters(char html[], char parameters[PARAMETER][PARAMETER]) {
@@ -287,20 +308,7 @@ void getHandler(int connfd, char url[], int port, char IP[]){
 		// to the html document
 		char bg[20];
 		memset(&bg, 0, sizeof(bg));
-		int i = 0;
-		while(parameters[i][0]) {
-			fprintf(stdout, "parameters[%d] :  %s \n", i,  parameters[i]);
-			fflush(stdout);	
-			gchar ** key = g_strsplit(parameters[i], "=", -1);
-			if(key[0] && strcmp("bg", key[0]) == 0) {
-				fprintf(stdout, "Key0 %s \n", key[0]);
-				fprintf(stdout, "Key1 %s \n", key[1]);
-				fflush(stdout);	
-				strcat(bg, parameters[i]);
-			}
-			g_strfreev(key);
-			i++;
-		}
+		getBackgroundColor(parameters, bg);
 
 		if(bg[0] != '\0'){
 			generateHtmlBody(html, bg);
@@ -333,29 +341,12 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 
 	char requestType[TYPE_SIZE];
 	char requestUrl[URL_SIZE];
-	char cookie[COOKIE_SIZE];
 	memset(&requestType, 0, TYPE_SIZE);
 	memset(&requestUrl, 0, URL_SIZE);
-	memset(&cookie, 0, COOKIE_SIZE);
-	//getHeadField(message, head);
-	//char htmlDoc[HTML_MAX_SIZE];
+	
 	getRequestType(requestType, message);
 	getRequestUrl(requestUrl, message);	
-	fprintf(stdout, "Request type  %s\n", requestType);
-	fprintf(stdout, "Request url %s\n", requestUrl);
-	fflush(stdout);
-		
-/*	gchar ** splitColor = g_strsplit(requestUrl, "?", -1);
-	if(strcmp(splitColor[0], "color") == 0) {
-		gchar ** splitCookie = g_strsplit(splitColor[1], "&", -1);
-		strcpy(cookie, splitCookie[1]);
-		g_strfreev(splitCookie);
-		fprintf(stdout, "Cookie: %s\n", cookie);
-		fflush(stdout);
-	}
-	g_strfreev(splitColor);*/
-	/* Check which type of request received from the client.*/
-	
+
 	if (strcmp(HTTP_GET, requestType) == 0) {
 		getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
 	} else if (strcmp(HTTP_POST, requestType) == 0) { 
