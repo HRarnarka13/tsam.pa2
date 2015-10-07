@@ -110,7 +110,7 @@ void getParameters(char parameters[PARAMETER][PARAMETER], char queryString[]){
 /**
  * This function generates a simple header.
  */
-void headGenerator(char head[], int contentLength){
+void headGenerator(char head[], char cookie[], int contentLength){
 	char c_contentLength[8];
 	time_t now;                                        			
     time(&now);
@@ -127,6 +127,12 @@ void headGenerator(char head[], int contentLength){
 	strcat(head, "Content-Type: text/html\r\n");
 	strcat(head, "Content-length: ");
 	strcat(head, c_contentLength);
+	// set the cookie
+	if (cookie) {
+		strcat(head, "\r\n");
+		strcat(head, "Set-Cookie: ");
+		strcat(head, cookie);
+	}
 	/*The string \r\n\r\n distinguishes between the head and data field.*/
 	strcat(head, "\r\n\r\n");
 }
@@ -157,7 +163,6 @@ void generateHtmlBody(char html[], char color[]) {
  * the html.
  */ 
 void generateHtmlRequestInfo(char html[], char url[], char ip[], int port) {
-	
 	strcat(html, "\n\t\t<h1>");
 	strcat(html, url);
 	strcat(html, "</h1>");
@@ -165,7 +170,7 @@ void generateHtmlRequestInfo(char html[], char url[], char ip[], int port) {
 	strcat(html, "ClientIP: ");
 	strcat(html, ip);
 	strcat(html, " Port: ");
-	
+ 	// convert the port number to a string format	
 	char portBuff[PORT_SIZE];
 	memset(&portBuff, 0, sizeof(portBuff));
 	snprintf(portBuff, PORT_SIZE, "%d", port);
@@ -207,7 +212,7 @@ void generateHtmlParameters(char html[], char parameters[PARAMETER][PARAMETER]) 
 void headHandler(int connfd){
 	char head[HEAD_MAX_SIZE];
 	memset(&head, 0, HEAD_MAX_SIZE);
-	headGenerator(head, 0);	
+	headGenerator(head, NULL, 0);	
 	write(connfd, head, (size_t) sizeof(head));
 }
 
@@ -242,7 +247,7 @@ void postHandler(int connfd, char url[],  int port, char IP[], char message[]){
 	strcat(html, data);
 	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
 
-	headGenerator(head, strlen(html));
+	headGenerator(head, NULL, strlen(html));
 	strcat(head, html);
 	strcat(segment, head);
 	write(connfd, segment, (size_t) sizeof(segment));
@@ -255,55 +260,38 @@ void postHandler(int connfd, char url[],  int port, char IP[], char message[]){
  */
 void getHandler(int connfd, char url[], int port, char IP[]){
 	char html[HTML_MAX_SIZE];
-	char portBuff[PORT_SIZE];
 	char head[HEAD_MAX_SIZE];
 	char queryString[URL_SIZE];
-	// GArray * parameters (FALSE, FALSE, sizeof(char *));
 	char parameters[PARAMETER][PARAMETER];
-	char value[VALUE];
 	char segment[SEGMENT_MAX_SIZE];
 	memset(&html, 0, HTML_MAX_SIZE);
-	memset(&portBuff, 0, PORT_SIZE);
 	memset(&head, 0, HEAD_MAX_SIZE);
 	memset(&queryString, 0, URL_SIZE);
 	memset(&parameters, 0, PARAMETER * PARAMETER * sizeof(char *));
-	memset(&value, 0, URL_SIZE);
 	memset(&segment, 0, SEGMENT_MAX_SIZE);
-	// Check for a query string
-	snprintf(portBuff, PORT_SIZE, "%d", port);
+	
+	char bg[20];
+	memset(&bg, 0, sizeof(bg));
 	// Generate the html
 	if(strchr(url, '?')) {
 		getQueryString(url, queryString);
-		fprintf(stdout, "url :  %s \n", url);
-		fprintf(stdout, "queryString :  %s \n", queryString);
-		fflush(stdout);	
 		getParameters(parameters, queryString);
-
 		// if the string contains a query, get and inject the param and value
 		// to the html document
-		char bg[20];
-		memset(&bg, 0, sizeof(bg));
 		int i = 0;
 		while(parameters[i][0]) {
-			fprintf(stdout, "parameters[%d] :  %s \n", i,  parameters[i]);
-			fflush(stdout);	
 			gchar ** key = g_strsplit(parameters[i], "=", -1);
 			if(key[0] && strcmp("bg", key[0]) == 0) {
-				fprintf(stdout, "Key0 %s \n", key[0]);
-				fprintf(stdout, "Key1 %s \n", key[1]);
-				fflush(stdout);	
 				strcat(bg, parameters[i]);
 			}
 			g_strfreev(key);
 			i++;
 		}
-
 		if(bg[0] != '\0'){
 			generateHtmlBody(html, bg);
 		} else {
 			generateHtmlBody(html, NULL);
 		}
-		
 		generateHtmlRequestInfo(html, url, IP, port);	
 		generateHtmlParameters(html, parameters);
 	} else {
@@ -311,12 +299,15 @@ void getHandler(int connfd, char url[], int port, char IP[]){
 		generateHtmlBody(html, NULL);
 		generateHtmlRequestInfo(html, url, IP, port);
 	}
-	
 	strcat(html, "\n\t</body>\n</html>\n");
-	headGenerator(head, strlen(html));
+	
+	if (bg[0] != '\0') {
+		headGenerator(head, bg, strlen(html));
+	} else {
+		headGenerator(head, NULL, strlen(html));
+	}
 	strcat(head, html);
 	strcat(segment, head);
-
 	write(connfd, segment, (size_t) sizeof(segment));
 }
 
@@ -363,8 +354,9 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 	} else {		
 		fprintf(f, "%s : ", buf);
 		fprintf(f, "%s:%d ", inet_ntoa(client.sin_addr), client.sin_port);
-		fprintf(f, "%s\n", requestType);			
-		fprintf(f, "connfd: %d\n", connfd);
+		fprintf(f, "%s ", requestType);			
+		fprintf(f, "%s : ", requestUrl);
+		fprintf(f, "200 OK \n");
 	}
 }
 
