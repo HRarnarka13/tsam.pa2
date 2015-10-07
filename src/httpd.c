@@ -49,6 +49,14 @@ void getRequestUrl(char url[], char message[]) {
 	g_strfreev(split);
 }
 
+void getDataField(char data[]){
+	gchar ** split = g_strsplit(data, "\r\n\r\n", -1);
+	if(split[1] != NULL){
+		strcat(data, split[1]);
+	} 
+	g_strfreev(split);
+}
+
 void headGenerator(char head[], int contentLength){
 	char c_contentLength[8];
 	time_t now;                                        			
@@ -75,8 +83,29 @@ void headHandler(int connfd){
 	write(connfd, head, (size_t) sizeof(head));
 }
 
-void postHandler(int connfd, char message[]){
-	
+void postHandler(int connfd, char url[], int port, char IP[]){
+	char html[HTML_MAX_SIZE];
+	char data[HTML_MAX_SIZE];
+	char portBuff[PORT_SIZE];
+	char head[HTML_MAX_SIZE];
+	memset(&html, 0, HTML_MAX_SIZE);
+	memset(&head, 0, HTML_MAX_SIZE);
+	memset(&portBuff, 0, HTML_MAX_SIZE);
+	memset(&data, 0, HTML_MAX_SIZE);
+	snprintf(portBuff, PORT_SIZE, "%d", port);
+	getDataField(data);
+	headGenerator(head, strlen(data));
+	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
+	strcat(html, "\n\t\t<p>\n\t\t\t");
+	strcat(html, portBuff);
+	strcat(html, "<br>");	
+	strcat(html, "\n\t\t\tClientID: ");
+	strcat(html, IP);
+	strcat(html, "<br>\n\t\t\t");	
+	strcat(html, data);
+	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
+	strcat(head, html);
+	write(connfd, head, (size_t) sizeof(head));
 }
 
 void getQueryString(char url[], char queryString[]){
@@ -174,14 +203,15 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 	if (strcmp(HTTP_GET, requestType) == 0) {
 		getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
 	} else if (strcmp(HTTP_POST, requestType) == 0) { 
-		postHandler(connfd, message);	
+	postHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
+	//the data section of the request is the text to inject into the html
+	// TODO: we have to get the data, delimiter
 	} else if (strcmp(HTTP_HEAD, requestType) == 0) {
 		headHandler(connfd);
-		fprintf(stdout, "calling headHandler");
 	} else {
-		fprintf(stdout, "Request url %s\n", requestUrl);
+		fprintf(stdout, "Request type invalid!\n");
+		fflush(stdout);
 	}
-	fflush(stdout);
 
 	/* Log request from user */
 	time_t now;                                        			
