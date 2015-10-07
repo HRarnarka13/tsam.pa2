@@ -179,7 +179,27 @@ void generateHtmlData(char html[], char data[]) {
 	strcat(html, "</p>");
 }
 
-
+void generateHtmlParameters(char html[], char parameters[PARAMETER][PARAMETER]) {
+	strcat(html, "\n\t\t<ul>");
+	int j = 0;
+	while(parameters[j][0]) {
+		gchar ** keyValue = g_strsplit(parameters[j], "=", -1);
+		fprintf(stdout, "bg %s \n", parameters[j]);
+		fprintf(stdout, "keyValue0 %s \n", keyValue[0]);
+		fprintf(stdout, "keyValue1 %s \n", keyValue[1]);
+		fflush(stdout);
+		if (keyValue[0] && keyValue[1]) { 
+			strcat(html, "\n\t\t\t<li>");
+			strcat(html, keyValue[0]);
+			strcat(html, " = ");
+			strcat(html, keyValue[1]);
+			strcat(html, "</li>");
+		}	
+		g_strfreev(keyValue);
+		j++;
+	}
+	strcat(html, "\n\t\t</ul>");
+}
 
 /**
  * This function handles request of type HEAD. 
@@ -208,7 +228,7 @@ void postHandler(int connfd, char url[],  int port, char IP[], char message[]){
 
 	snprintf(portBuff, PORT_SIZE, "%d", port);
 	getDataField(message,data);
-
+	
 	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
 	strcat(html, "\n\t\t<h1>");
 	strcat(html, url);
@@ -279,67 +299,20 @@ void getHandler(int connfd, char url[], int port, char IP[]){
 		}
 
 		if(bg[0] != '\0'){
-			strcat(html, "<!DOCTYPE html>\n<html>\n\t<body");
-			strcat(html, " style='background-color:");
-
-			gchar ** keyValue = g_strsplit(bg, "=", -1);
-			if(keyValue[0] == NULL || keyValue[1] == NULL) {
-				strcat(value, "white");
-			} else {
-				strcat(value, keyValue[1]);
-			}		
-			g_strfreev(keyValue);
-			strcat(html, value);			
-			strcat(html,"'>");
-
-		} else{
-			strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
+			generateHtmlBody(html, bg);
+		} else {
+			generateHtmlBody(html, NULL);
 		}
 		
-		strcat(html, "\n\t\t<h1>");
-		strcat(html, url);
-		strcat(html, "</h1>");
-		strcat(html, "\n\t\t<p>\n\t\t\tPort: ");
-		strcat(html, portBuff);
-		strcat(html, "<br>");	
-		strcat(html, "\n\t\t\tClientID: ");
-		strcat(html, IP);
-		strcat(html, "<br>");	
-
-		int j = 0;
-		while(parameters[j][0]) {
-			gchar ** keyValue = g_strsplit(parameters[j], "=", -1);
-			fprintf(stdout, "bg %s \n", parameters[j]);
-			fprintf(stdout, "keyValue0 %s \n", keyValue[0]);
-			fprintf(stdout, "keyValue1 %s \n", keyValue[1]);
-			fflush(stdout);
-			if (keyValue[0] && keyValue[1]) { 
-				strcat(html, "\n\t\t\t");
-				strcat(html, keyValue[0]);
-				strcat(html, " = ");
-				strcat(html, keyValue[1]);
-				strcat(html, "<br>");
-			}
-			g_strfreev(keyValue);
-			j++;
-		}
-		fprintf(stdout, "over while parameters[j] \n");
-		fflush(stdout);
+		generateHtmlRequestInfo(html, url, IP, port);	
+		generateHtmlParameters(html, parameters);
 	} else {
 		// There are no query parameters
-		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
-		strcat(html, "\n\t\t<h1>");
-		strcat(html, url);
-		strcat(html, "</h1>");
-		strcat(html, "\n\t\t<p>\n\t\t\tPort: ");
-		strcat(html, portBuff);
-		strcat(html, "<br>");	
-		strcat(html, "\n\t\t\tClientID: ");
-		strcat(html, IP);
-		strcat(html, "<br>");	
+		generateHtmlBody(html, NULL);
+		generateHtmlRequestInfo(html, url, IP, port);
 	}
 	
-	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
+	strcat(html, "\n\t</body>\n</html>\n");
 	headGenerator(head, strlen(html));
 	strcat(head, html);
 	strcat(segment, head);
