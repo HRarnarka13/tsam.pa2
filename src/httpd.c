@@ -49,8 +49,8 @@ void getRequestUrl(char url[], char message[]) {
 	g_strfreev(split);
 }
 
-void getDataField(char data[]){
-	gchar ** split = g_strsplit(data, "\r\n\r\n", -1);
+void getDataField(char message[], char data[]){
+	gchar ** split = g_strsplit(message, "\r\n\r\n", -1);
 	if(split[1] != NULL){
 		strcat(data, split[1]);
 	} 
@@ -83,7 +83,7 @@ void headHandler(int connfd){
 	write(connfd, head, (size_t) sizeof(head));
 }
 
-void postHandler(int connfd, char url[], int port, char IP[]){
+void postHandler(int connfd, char url[], int port, char IP[], char message[]){
 	char html[HTML_MAX_SIZE];
 	char data[HTML_MAX_SIZE];
 	char portBuff[PORT_SIZE];
@@ -93,8 +93,7 @@ void postHandler(int connfd, char url[], int port, char IP[]){
 	memset(&portBuff, 0, HTML_MAX_SIZE);
 	memset(&data, 0, HTML_MAX_SIZE);
 	snprintf(portBuff, PORT_SIZE, "%d", port);
-	getDataField(data);
-	headGenerator(head, strlen(data));
+	getDataField(message,data);
 	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
 	strcat(html, "\n\t\t<p>\n\t\t\t");
 	strcat(html, portBuff);
@@ -104,6 +103,7 @@ void postHandler(int connfd, char url[], int port, char IP[]){
 	strcat(html, "<br>\n\t\t\t");	
 	strcat(html, data);
 	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
+	headGenerator(head, strlen(html));
 	strcat(head, html);
 	write(connfd, head, (size_t) sizeof(head));
 }
@@ -185,7 +185,7 @@ void getHandler(int connfd, char url[], int port, char IP[]){
 	headGenerator(head, strlen(html));
 	strcat(head, html);
 
-	write(connfd, head, (size_t) sizeof(html));
+	write(connfd, head, (size_t) sizeof(head));
 }
 void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client){
 
@@ -203,7 +203,7 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 	if (strcmp(HTTP_GET, requestType) == 0) {
 		getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
 	} else if (strcmp(HTTP_POST, requestType) == 0) { 
-	postHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
+	postHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr), message);
 	//the data section of the request is the text to inject into the html
 	// TODO: we have to get the data, delimiter
 	} else if (strcmp(HTTP_HEAD, requestType) == 0) {
