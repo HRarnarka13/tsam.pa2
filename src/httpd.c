@@ -19,6 +19,7 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <glib.h>
+#include <stdbool.h>
 
 #define HTTP_GET "GET"
 #define HTTP_POST "POST"
@@ -87,11 +88,23 @@ void getQueryString(char url[], char queryString[]){
 /**
  * This function gets the parameter and it's value from a query string.
  */
-void getParameters(char parameter[], char value[], char queryString[]){
-	gchar ** split = g_strsplit(queryString, "=", -1);
-	strcat(parameter, split[0]);
-	strcat(value, split[1]);
-	g_strfreev(split);
+void getParameters(char parameters[PARAMETER][PARAMETER], char queryString[]){
+	gchar ** splitAmpersand = g_strsplit(queryString, "&", -1);
+	int i = 0;
+	while(splitAmpersand[i] != NULL){
+		gchar ** keyValue = g_strsplit(splitAmpersand[i], "=", -1);
+		if(keyValue[0] == NULL || keyValue[1] == NULL){
+			break;
+		} else {
+			// g_array_append_val(parameters, splitAmpersand[i]);
+			strcpy(parameters[i], splitAmpersand[i]);
+			fprintf(stdout, "GetParameters \n");
+			fprintf(stdout, "parameters[%d] : %s \n", i, parameters[i]);
+			fflush(stdout);
+		}
+		i++;
+	}		
+	g_strfreev(splitAmpersand);
 }
 
 /**
@@ -131,7 +144,7 @@ void headHandler(int connfd){
 /**
  * This function handles requests of type POST.
  */
-void postHandler(int connfd, char url[], int port, char IP[], char message[]){
+void postHandler(int connfd, char url[],  int port, char IP[], char message[]){
 	char html[HTML_MAX_SIZE];
 	char data[HTML_MAX_SIZE];
 	char portBuff[PORT_SIZE];
@@ -147,6 +160,9 @@ void postHandler(int connfd, char url[], int port, char IP[], char message[]){
 	getDataField(message,data);
 
 	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
+	strcat(html, "\n\t\t<h1>");
+	strcat(html, url);
+	strcat(html, "</h1>");
 	strcat(html, "\n\t\t<p>\n\t\t\t");
 	strcat(html, portBuff);
 	strcat(html, "<br>");	
@@ -172,50 +188,97 @@ void getHandler(int connfd, char url[], int port, char IP[]){
 	char portBuff[PORT_SIZE];
 	char head[HEAD_MAX_SIZE];
 	char queryString[URL_SIZE];
-	char parameter[PARAMETER];
+	// GArray * parameters (FALSE, FALSE, sizeof(char *));
+	char parameters[PARAMETER][PARAMETER];
 	char value[VALUE];
 	char segment[SEGMENT_MAX_SIZE];
 	memset(&html, 0, HTML_MAX_SIZE);
 	memset(&portBuff, 0, PORT_SIZE);
 	memset(&head, 0, HEAD_MAX_SIZE);
 	memset(&queryString, 0, URL_SIZE);
-	memset(&parameter, 0, URL_SIZE);
+	memset(&parameters, 0, PARAMETER * PARAMETER * sizeof(char *));
 	memset(&value, 0, URL_SIZE);
 	memset(&segment, 0, SEGMENT_MAX_SIZE);
 	// Check for a query string
 	snprintf(portBuff, PORT_SIZE, "%d", port);
-
 	// Generate the html
-	if(strchr(url, '?')){
+	if(strchr(url, '?')) {
 		getQueryString(url, queryString);
-		getParameters(parameter, value, queryString);
+		fprintf(stdout, "url :  %s \n", url);
+		fprintf(stdout, "queryString :  %s \n", queryString);
+		fflush(stdout);	
+		getParameters(parameters, queryString);
+
 		// if the string contains a query, get and inject the param and value
 		// to the html document
-		if(strcmp("bg", parameter) == 0){
+		char bg[20];
+		memset(&bg, 0, sizeof(bg));
+		int i = 0;
+		while(parameters[i][0]) {
+			fprintf(stdout, "parameters[%d] :  %s \n", i,  parameters[i]);
+			fflush(stdout);	
+			gchar ** key = g_strsplit(parameters[i], "=", -1);
+			if(key[0] && strcmp("bg", key[0]) == 0) {
+				fprintf(stdout, "Key0 %s \n", key[0]);
+				fprintf(stdout, "Key1 %s \n", key[1]);
+				fflush(stdout);	
+				strcat(bg, parameters[i]);
+			}
+			g_strfreev(key);
+			i++;
+		}
+
+		if(bg[0] != '\0'){
 			strcat(html, "<!DOCTYPE html>\n<html>\n\t<body");
 			strcat(html, " style='background-color:");
+
+			gchar ** keyValue = g_strsplit(bg, "=", -1);
+			if(keyValue[0] == NULL || keyValue[1] == NULL) {
+				strcat(value, "white");
+			} else {
+				strcat(value, keyValue[1]);
+			}		
+			g_strfreev(keyValue);
 			strcat(html, value);			
 			strcat(html,"'>");
-			strcat(html, "\n\t\t<p>\n\t\t\t");
-			strcat(html, portBuff);
-			strcat(html, "<br>\n\t\t\t");	
-			strcat(html, IP);
-			strcat(html, "<br>");	
 
 		} else{
 			strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
-			strcat(html, "\n\t\t<p>\n\t\t\t");
-			strcat(html, portBuff);
-			strcat(html, "<br>");	
-			strcat(html, "\n\t\t\tClientID: ");
-			strcat(html, IP);
-			strcat(html, "<br>\n\t\t\t");	
-			strcat(html, parameter);
-			strcat(html, " = ");
-			strcat(html, value);
 		}
-	} else{
-		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>\n\t\t<h1>");
+		
+		strcat(html, "\n\t\t<h1>");
+		strcat(html, url);
+		strcat(html, "</h1>");
+		strcat(html, "\n\t\t<p>\n\t\t\tPort: ");
+		strcat(html, portBuff);
+		strcat(html, "<br>");	
+		strcat(html, "\n\t\t\tClientID: ");
+		strcat(html, IP);
+		strcat(html, "<br>");	
+
+		int j = 0;
+		while(parameters[j][0]) {
+			gchar ** keyValue = g_strsplit(parameters[j], "=", -1);
+			fprintf(stdout, "bg %s \n", parameters[j]);
+			fprintf(stdout, "keyValue0 %s \n", keyValue[0]);
+			fprintf(stdout, "keyValue1 %s \n", keyValue[1]);
+			fflush(stdout);
+			if (keyValue[0] && keyValue[1]) { 
+				strcat(html, "\n\t\t\t");
+				strcat(html, keyValue[0]);
+				strcat(html, " = ");
+				strcat(html, keyValue[1]);
+				strcat(html, "<br>");
+			}
+			g_strfreev(keyValue);
+			j++;
+		}
+		fprintf(stdout, "over while parameters[j] \n");
+		fflush(stdout);
+	} else {
+		// There are no query parameters
+		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
+		strcat(html, "\n\t\t<h1>");
 		strcat(html, url);
 		strcat(html, "</h1>");
 		strcat(html, "\n\t\t<p>\n\t\t\tPort: ");
@@ -225,6 +288,7 @@ void getHandler(int connfd, char url[], int port, char IP[]){
 		strcat(html, IP);
 		strcat(html, "<br>");	
 	}
+	
 	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
 	headGenerator(head, strlen(html));
 	strcat(head, html);
@@ -251,6 +315,7 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 	fprintf(stdout, "Request url %s\n", requestUrl);
 	fflush(stdout);
 	/* Check which type of request received from the client.*/
+	
 	if (strcmp(HTTP_GET, requestType) == 0) {
 		getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
 	} else if (strcmp(HTTP_POST, requestType) == 0) { 
@@ -285,14 +350,14 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
  */
 int main(int argc, char **argv)
 {
-	/*int i = 0;
+	int i = 0;
 	fprintf(stdout, "Print out the params, nr of params=%d \n", argc);
 	fflush(stdout);
 	while (argv[i] != NULL) {
 		fprintf(stdout, "argv[%d] : %s \n", i, argv[i]);
 		fflush(stdout);
 		i++;
-	}*/
+	}
 
 	int sockfd;
 	struct sockaddr_in server, client;
