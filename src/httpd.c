@@ -40,7 +40,7 @@
  * returns NULL if the request method is not supported 
  */
 void getRequestType(char request[], char message[]) {
-		gchar ** split = g_strsplit(message, " ", -1);
+	gchar ** split = g_strsplit(message, " ", -1);
 	strcat(request, split[0]);
 	g_strfreev(split);
 	fprintf(stdout, "print i request\n");
