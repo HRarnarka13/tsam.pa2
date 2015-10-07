@@ -1,3 +1,4 @@
 data
 src/httpd
 log.txt
+httpd.log
