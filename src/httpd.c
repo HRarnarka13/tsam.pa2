@@ -142,8 +142,6 @@ void headGenerator(char head[], char cookie[], int contentLength){
 	strcat(head, c_contentLength);
 	// set the cookie
 	if (cookie[0] != '\0') {
-		fprintf(stdout, "Inside headgenerator cookie: %s", cookie);
-		fflush(stdout);
 		strcat(head, "\r\n");
 		strcat(head, "Set-Cookie: ");
 		strcat(head, cookie);
@@ -156,8 +154,6 @@ void headGenerator(char head[], char cookie[], int contentLength){
  * color is a string like "bg=red"
  */
 void generateHtmlBody(char html[], char color[]) {
-	fprintf(stdout, "color: %s\n", color);
-	fflush(stdout); 
 	if (color[0] != '\0') {
 		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body");
 		strcat(html, " style='background-color:");
@@ -222,10 +218,6 @@ void generateHtmlParameters(char html[], char parameters[PARAMETER][PARAMETER]) 
 	int j = 0;
 	while(parameters[j][0]) {
 		gchar ** keyValue = g_strsplit(parameters[j], "=", -1);
-		fprintf(stdout, "bg %s \n", parameters[j]);
-		fprintf(stdout, "keyValue0 %s \n", keyValue[0]);
-		fprintf(stdout, "keyValue1 %s \n", keyValue[1]);
-		fflush(stdout);
 		if (keyValue[0] && keyValue[1]) { 
 			strcat(html, "\n\t\t\t<li>");
 			strcat(html, keyValue[0]);
@@ -271,6 +263,8 @@ void postHandler(int connfd, char url[], char bg[],  int port, char IP[], char m
 		getParameters(parameters, queryString);
 	}
 	generateHtmlBody(html, bg);
+	
+
 	generateHtmlRequestInfo(html, url, IP, port);	
 	if (strchr(url, '?')) {
 		generateHtmlParameters(html, parameters);
@@ -315,6 +309,7 @@ void getHandler(int connfd, char url[], char bg[], int port, char IP[]){
 	strcat(html, "\n\t</body>\n</html>\n");
 
 	headGenerator(head, bg, strlen(html));
+	
 	strcat(head, html);
 	strcat(segment, head);
 	write(connfd, segment, (size_t) sizeof(segment));
@@ -347,9 +342,6 @@ void typeHandler(int connfd, char message[], struct sockaddr_in client){
 		getQueryString(url, queryString);
 		getParameters(parameters, queryString);
 		getBackgroundColor(parameters, bg);
-		
-		fprintf(stdout, "bg is: %s\n", bg);
-		fflush(stdout);
 	}  
 	/* If the bg varible is not in the query string it is maybe set in the cookie */
 	if (bg[0] == '\0') {
@@ -367,6 +359,10 @@ void typeHandler(int connfd, char message[], struct sockaddr_in client){
 			}
 		}
 	}
+
+	fprintf(stdout, "requestType: :%s:\n", requestType);
+	fprintf(stdout, "REQUEST MESSAGE:\n%s\n\n", message);
+	fflush(stdout);
 
 	if (strcmp(HTTP_GET, requestType) == 0) {
 		/* Handle get reqest from client */
@@ -516,23 +512,32 @@ int main(int argc, char **argv)
 					shutdown(connfd, SHUT_RDWR);
 					close(connfd);	
 				} else {
-					fprintf(stdout, "NEW CLIENT : ");
+					fprintf(stdout, "Waiting for client read: \n");
 					fflush(stdout);
 					memset(&message, 0, sizeof(message));
 					ssize_t n = read(connfd, message, sizeof(message) - 1);
 					message[n] = '\0';
-					typeHandler(connfd, message, client); // handle client's request
-					/* Check if the clients wants to keep the connection alive */
-					if (getPersistentConnection(message) == 1) {
-						fprintf(stdout, "Keep alive\n");
-						fflush(stdout);
-						time_t now;
-						clients[foundSpaceAtIndex].time = time(&now);
-					} else {
-						fprintf(stdout, "close\n");
+					fprintf(stdout, "Message from new clinet\n%s\n", message);
+					fflush(stdout);
+					if (strlen(message) == 0) {
+						fprintf(stdout, "Messeage is empty, closing connection...\n");
 						fflush(stdout);
 						close(connfd);	
 						clients[foundSpaceAtIndex].connfd = -1;
+					} else {
+						typeHandler(connfd, message, client); // handle client's request
+						/* Check if the clients wants to keep the connection alive */
+						if (getPersistentConnection(message) == 1) {
+							fprintf(stdout, "Keep alive\n");
+							fflush(stdout);
+							time_t now;
+							clients[foundSpaceAtIndex].time = time(&now);
+						} else {
+							fprintf(stdout, "close\n");
+							fflush(stdout);
+							close(connfd);	
+							clients[foundSpaceAtIndex].connfd = -1;
+						}
 					}
 				}
 			}
@@ -542,8 +547,6 @@ int main(int argc, char **argv)
 			for (; ci < MAX_CLIENTS; ci++) {
 				/* Check if current client is active and is sending a request */
 				if (clients[ci].connfd != -1 && FD_ISSET(clients[ci].connfd, &rfds)) {
-					fprintf(stdout, "Our old friend : %d \n", clients[ci].connfd);
-					fflush(stdout);
 					memset(&message, 0, sizeof(message));
 					ssize_t n = read(clients[ci].connfd, message, sizeof(message) - 1);
 					message[n] = '\0';
