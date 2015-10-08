@@ -33,15 +33,19 @@
 #define SEGMENT_MAX_SIZE 2048
 #define PARAMETER 24
 #define VALUE 16
+#define COOKIE_SIZE 24
 
 /**
  * This function gets the request method from the message
  * returns NULL if the request method is not supported 
  */
 void getRequestType(char request[], char message[]) {
-	gchar ** split = g_strsplit(message, " ", -1);
+		gchar ** split = g_strsplit(message, " ", -1);
 	strcat(request, split[0]);
 	g_strfreev(split);
+	fprintf(stdout, "print i request\n");
+	fflush(stdout);
+
 }
 
 /** 
@@ -106,11 +110,15 @@ void getParameters(char parameters[PARAMETER][PARAMETER], char queryString[]){
 	}		
 	g_strfreev(splitAmpersand);
 }
+/*
+void setCookie(){
+	
+}*/
 
 /**
  * This function generates a simple header.
  */
-void headGenerator(char head[], int contentLength){
+void headGenerator(char head[], char cookie[], int contentLength){
 	char c_contentLength[8];
 	time_t now;                                        			
     time(&now);
@@ -127,52 +135,139 @@ void headGenerator(char head[], int contentLength){
 	strcat(head, "Content-Type: text/html\r\n");
 	strcat(head, "Content-length: ");
 	strcat(head, c_contentLength);
+	// set the cookie
+	if (cookie) {
+		strcat(head, "\r\n");
+		strcat(head, "Set-Cookie: ");
+		strcat(head, cookie);
+	}
 	/*The string \r\n\r\n distinguishes between the head and data field.*/
 	strcat(head, "\r\n\r\n");
+}
+/**
+ * Html is the array to append the html code 
+ * color is a string like "bg=red"
+ */
+void generateHtmlBody(char html[], char color[]) {
+	if (color) {
+		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body");
+		strcat(html, " style='background-color:");
+
+		gchar ** keyValue = g_strsplit(color, "=", -1);
+		if(keyValue[0] == NULL || keyValue[1] == NULL) {
+			strcat(html, "white");
+		} else {
+			strcat(html, keyValue[1]);
+		}		
+		g_strfreev(keyValue);
+		strcat(html,"'>");
+	} else {
+		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
+	}
+}
+
+/*
+ * appends the html containg the url, ip address and port number of the request into
+ * the html.
+ */ 
+void generateHtmlRequestInfo(char html[], char url[], char ip[], int port) {
+	strcat(html, "\n\t\t<h1>");
+	strcat(html, url);
+	strcat(html, "</h1>");
+	strcat(html, "\n\t\t<p>");
+	strcat(html, "ClientIP: ");
+	strcat(html, ip);
+	strcat(html, " Port: ");
+ 	// convert the port number to a string format	
+	char portBuff[PORT_SIZE];
+	memset(&portBuff, 0, sizeof(portBuff));
+	snprintf(portBuff, PORT_SIZE, "%d", port);
+	strcat(html, portBuff);
+	strcat(html, "</p>");	
+}
+
+void generateHtmlData(char html[], char data[]) {
+	strcat(html, "\n\t\t<p>");
+	strcat(html, data);
+	strcat(html, "</p>");
+}
+
+void getBackgroundColor(char parameters[PARAMETER][PARAMETER], char bg[]){
+	int i = 0;
+	while(parameters[i][0]) {
+		gchar ** key = g_strsplit(parameters[i], "=", -1);
+		if(key[0] && strcmp("bg", key[0]) == 0) {
+			strcat(bg, parameters[i]);
+		}
+		g_strfreev(key);
+		i++;
+	}
+}
+
+void generateHtmlParameters(char html[], char parameters[PARAMETER][PARAMETER]) {
+	strcat(html, "\n\t\t<ul>");
+	int j = 0;
+	while(parameters[j][0]) {
+		gchar ** keyValue = g_strsplit(parameters[j], "=", -1);
+		fprintf(stdout, "bg %s \n", parameters[j]);
+		fprintf(stdout, "keyValue0 %s \n", keyValue[0]);
+		fprintf(stdout, "keyValue1 %s \n", keyValue[1]);
+		fflush(stdout);
+		if (keyValue[0] && keyValue[1]) { 
+			strcat(html, "\n\t\t\t<li>");
+			strcat(html, keyValue[0]);
+			strcat(html, " = ");
+			strcat(html, keyValue[1]);
+			strcat(html, "</li>");
+		}	
+		g_strfreev(keyValue);
+		j++;
+	}
+	strcat(html, "\n\t\t</ul>");
 }
 
 /**
  * This function handles request of type HEAD. 
  */
-void headHandler(int connfd){
+void headHandler(int connfd, char bg[]){
 	char head[HEAD_MAX_SIZE];
 	memset(&head, 0, HEAD_MAX_SIZE);
-	headGenerator(head, 0);	
+	headGenerator(head, bg, 0);	
 	write(connfd, head, (size_t) sizeof(head));
 }
 
 /**
  * This function handles requests of type POST.
  */
-void postHandler(int connfd, char url[],  int port, char IP[], char message[]){
+void postHandler(int connfd, char url[], char bg[],  int port, char IP[], char message[]){
 	char html[HTML_MAX_SIZE];
 	char data[HTML_MAX_SIZE];
-	char portBuff[PORT_SIZE];
 	char head[HTML_MAX_SIZE];
+	char queryString[URL_SIZE];
+	char parameters[PARAMETER][PARAMETER];
 	char segment[SEGMENT_MAX_SIZE];
 	memset(&html, 0, HTML_MAX_SIZE);
 	memset(&head, 0, HEAD_MAX_SIZE);
-	memset(&portBuff, 0, HTML_MAX_SIZE);
+	memset(&queryString, 0, URL_SIZE);
 	memset(&data, 0, HTML_MAX_SIZE);
+	memset(&parameters, 0, PARAMETER * sizeof(char *));
 	memset(&segment, 0, SEGMENT_MAX_SIZE);
-
-	snprintf(portBuff, PORT_SIZE, "%d", port);
+	
+	if (strchr(url, '?')) {
+		getQueryString(url, queryString);
+		getParameters(parameters, queryString);
+	}
 	getDataField(message,data);
-
-	strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
-	strcat(html, "\n\t\t<h1>");
-	strcat(html, url);
-	strcat(html, "</h1>");
-	strcat(html, "\n\t\t<p>\n\t\t\t");
-	strcat(html, portBuff);
-	strcat(html, "<br>");	
-	strcat(html, "\n\t\t\tClientID: ");
-	strcat(html, IP);
-	strcat(html, "<br>\n\t\t\t");	
-	strcat(html, data);
-	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
-
-	headGenerator(head, strlen(html));
+	fprintf(stdout, "DATA : %s\n", data);
+	fflush(stdout);
+	generateHtmlBody(html, bg);
+	generateHtmlRequestInfo(html, url, IP, port);	
+	if (strchr(url, '?')) {
+		generateHtmlParameters(html, parameters);
+	}
+	generateHtmlData(html, data);
+	strcat(html, "\n\t</body>\n</html>\n");
+	headGenerator(head, bg, strlen(html));	
 	strcat(head, html);
 	strcat(segment, head);
 	write(connfd, segment, (size_t) sizeof(segment));
@@ -183,117 +278,34 @@ void postHandler(int connfd, char url[],  int port, char IP[], char message[]){
  *	to the client. The html varies depending on if there is a query in the URL, 
  *	if it is to set a background color of the page or if it is just a regular URL.
  */
-void getHandler(int connfd, char url[], int port, char IP[]){
+void getHandler(int connfd, char url[], char bg[], int port, char IP[]){
 	char html[HTML_MAX_SIZE];
-	char portBuff[PORT_SIZE];
 	char head[HEAD_MAX_SIZE];
-	char queryString[URL_SIZE];
-	// GArray * parameters (FALSE, FALSE, sizeof(char *));
 	char parameters[PARAMETER][PARAMETER];
-	char value[VALUE];
+	char queryString[URL_SIZE];
 	char segment[SEGMENT_MAX_SIZE];
 	memset(&html, 0, HTML_MAX_SIZE);
-	memset(&portBuff, 0, PORT_SIZE);
-	memset(&head, 0, HEAD_MAX_SIZE);
 	memset(&queryString, 0, URL_SIZE);
-	memset(&parameters, 0, PARAMETER * PARAMETER * sizeof(char *));
-	memset(&value, 0, URL_SIZE);
+	memset(&head, 0, HEAD_MAX_SIZE);
+	memset(&parameters, 0, PARAMETER * sizeof(char *));
 	memset(&segment, 0, SEGMENT_MAX_SIZE);
-	// Check for a query string
-	snprintf(portBuff, PORT_SIZE, "%d", port);
-	// Generate the html
-	if(strchr(url, '?')) {
-		getQueryString(url, queryString);
-		fprintf(stdout, "url :  %s \n", url);
-		fprintf(stdout, "queryString :  %s \n", queryString);
-		fflush(stdout);	
-		getParameters(parameters, queryString);
-
-		// if the string contains a query, get and inject the param and value
-		// to the html document
-		char bg[20];
-		memset(&bg, 0, sizeof(bg));
-		int i = 0;
-		while(parameters[i][0]) {
-			fprintf(stdout, "parameters[%d] :  %s \n", i,  parameters[i]);
-			fflush(stdout);	
-			gchar ** key = g_strsplit(parameters[i], "=", -1);
-			if(key[0] && strcmp("bg", key[0]) == 0) {
-				fprintf(stdout, "Key0 %s \n", key[0]);
-				fprintf(stdout, "Key1 %s \n", key[1]);
-				fflush(stdout);	
-				strcat(bg, parameters[i]);
-			}
-			g_strfreev(key);
-			i++;
-		}
-
-		if(bg[0] != '\0'){
-			strcat(html, "<!DOCTYPE html>\n<html>\n\t<body");
-			strcat(html, " style='background-color:");
-
-			gchar ** keyValue = g_strsplit(bg, "=", -1);
-			if(keyValue[0] == NULL || keyValue[1] == NULL) {
-				strcat(value, "white");
-			} else {
-				strcat(value, keyValue[1]);
-			}		
-			g_strfreev(keyValue);
-			strcat(html, value);			
-			strcat(html,"'>");
-
-		} else{
-			strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
-		}
-		
-		strcat(html, "\n\t\t<h1>");
-		strcat(html, url);
-		strcat(html, "</h1>");
-		strcat(html, "\n\t\t<p>\n\t\t\tPort: ");
-		strcat(html, portBuff);
-		strcat(html, "<br>");	
-		strcat(html, "\n\t\t\tClientID: ");
-		strcat(html, IP);
-		strcat(html, "<br>");	
-
-		int j = 0;
-		while(parameters[j][0]) {
-			gchar ** keyValue = g_strsplit(parameters[j], "=", -1);
-			fprintf(stdout, "bg %s \n", parameters[j]);
-			fprintf(stdout, "keyValue0 %s \n", keyValue[0]);
-			fprintf(stdout, "keyValue1 %s \n", keyValue[1]);
-			fflush(stdout);
-			if (keyValue[0] && keyValue[1]) { 
-				strcat(html, "\n\t\t\t");
-				strcat(html, keyValue[0]);
-				strcat(html, " = ");
-				strcat(html, keyValue[1]);
-				strcat(html, "<br>");
-			}
-			g_strfreev(keyValue);
-			j++;
-		}
-		fprintf(stdout, "over while parameters[j] \n");
-		fflush(stdout);
-	} else {
-		// There are no query parameters
-		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body>");
-		strcat(html, "\n\t\t<h1>");
-		strcat(html, url);
-		strcat(html, "</h1>");
-		strcat(html, "\n\t\t<p>\n\t\t\tPort: ");
-		strcat(html, portBuff);
-		strcat(html, "<br>");	
-		strcat(html, "\n\t\t\tClientID: ");
-		strcat(html, IP);
-		strcat(html, "<br>");	
-	}
 	
-	strcat(html, "\n\t\t</p>\n\t</body>\n</html>\n");
-	headGenerator(head, strlen(html));
+	// Generate the html
+	if (strchr(url, '?')) {
+		getQueryString(url, queryString);
+		getParameters(parameters, queryString);
+	}
+
+	generateHtmlBody(html, bg);
+	generateHtmlRequestInfo(html, url, IP, port);
+	if (strchr(url, '?')) {
+		generateHtmlParameters(html, parameters);
+	}
+	strcat(html, "\n\t</body>\n</html>\n");
+
+	headGenerator(head, bg, strlen(html));
 	strcat(head, html);
 	strcat(segment, head);
-
 	write(connfd, segment, (size_t) sizeof(segment));
 }
 
@@ -305,23 +317,45 @@ void getHandler(int connfd, char url[], int port, char IP[]){
 void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client){
 
 	char requestType[TYPE_SIZE];
-	char requestUrl[URL_SIZE];
+	char url[URL_SIZE];
+	char queryString[URL_SIZE];
+	char parameters[PARAMETER][PARAMETER];
+	char head[HEAD_MAX_SIZE];
 	memset(&requestType, 0, TYPE_SIZE);
-	memset(&requestUrl, 0, URL_SIZE);
-	//char htmlDoc[HTML_MAX_SIZE];
+	memset(&url, 0, URL_SIZE);
+	memset(&queryString, 0, URL_SIZE);
+	memset(&parameters, 0, PARAMETER * sizeof(char *));
+	memset(&head, 0, sizeof(head));
 	getRequestType(requestType, message);
-	getRequestUrl(requestUrl, message);	
-	fprintf(stdout, "Request type  %s\n", requestType);
-	fprintf(stdout, "Request url %s\n", requestUrl);
-	fflush(stdout);
-	/* Check which type of request received from the client.*/
+	getRequestUrl(url, message);	
 	
+	char bg[20];
+	memset(&bg, 0, sizeof(bg));
+	
+	if (strchr(url, '?')) {
+		getQueryString(url, queryString);
+		getParameters(parameters, queryString);
+		getBackgroundColor(parameters, bg);
+		
+		fprintf(stdout, "Contains PARAMETERS \n");
+		fflush(stdout);
+	}  
+
+	if (bg[0] == '\0') {
+		getHeadField(message, head);
+		gchar ** split = g_strsplit(message, "Cookie:", -1);
+		if (split[1]) {
+			strcpy(bg, split[1]);
+		}
+		g_strfreev(split);
+	}
+
 	if (strcmp(HTTP_GET, requestType) == 0) {
-		getHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr));
+		getHandler(connfd, url, bg, client.sin_port, inet_ntoa(client.sin_addr));
 	} else if (strcmp(HTTP_POST, requestType) == 0) { 
-	postHandler(connfd, requestUrl, client.sin_port, inet_ntoa(client.sin_addr), message);
+		postHandler(connfd, url, bg, client.sin_port, inet_ntoa(client.sin_addr), message);
 	} else if (strcmp(HTTP_HEAD, requestType) == 0) {
-		headHandler(connfd);
+		headHandler(connfd, bg);
 	} else {
 		fprintf(stdout, "Request type invalid!\n");
 		fflush(stdout);
@@ -340,8 +374,9 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 	} else {		
 		fprintf(f, "%s : ", buf);
 		fprintf(f, "%s:%d ", inet_ntoa(client.sin_addr), client.sin_port);
-		fprintf(f, "%s\n", requestType);			
-		fprintf(f, "connfd: %d\n", connfd);
+		fprintf(f, "%s ", requestType);			
+		fprintf(f, "%s : ", url);
+		fprintf(f, "200 OK \n");
 	}
 }
 
