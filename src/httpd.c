@@ -65,7 +65,7 @@ void getRequestUrl(char url[], char message[]) {
 }
 
 /**
- * This funstion splits a message and gets the head from it.
+ * This function splits a message and gets the head from it.
  */
 void getHeadField(char message[], char head[]){
 	gchar ** split = g_strsplit(message, "\r\n\r\n", -1);
