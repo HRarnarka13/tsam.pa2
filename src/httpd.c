@@ -34,9 +34,11 @@
 #define PARAMETER 24
 #define VALUE 16
 #define COOKIE_SIZE 24
+#define MAX_CLIENTS 5
+#define CONNECTION_TIME 30
 
 struct ClientInfo {
-	int connfd;
+	int connfd; // if connfd is set to -1 then the client is inactive
 	time_t time;
 	int keepAlive;
 	struct sockaddr_in socket; 
@@ -47,12 +49,9 @@ struct ClientInfo {
  * returns NULL if the request method is not supported 
  */
 void getRequestType(char request[], char message[]) {
-		gchar ** split = g_strsplit(message, " ", -1);
+	gchar ** split = g_strsplit(message, " ", -1);
 	strcat(request, split[0]);
 	g_strfreev(split);
-	fprintf(stdout, "print i request\n");
-	fflush(stdout);
-
 }
 
 /** 
@@ -411,7 +410,7 @@ int main(int argc, char **argv)
 		i++;
 	}
 
-	int sockfd;
+	int sockfd, highestConnfd;
 	struct sockaddr_in server, client;
 	char message[512];
 	int my_port = 0;
@@ -419,6 +418,8 @@ int main(int argc, char **argv)
 
 	/* Create and bind a UDP socket */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	highestConnfd = sockfd;
+
 	memset(&server, 0, sizeof(server));
 	server.sin_family = AF_INET;
 	/* Network functions need arguments in network byte order instead of
@@ -432,6 +433,13 @@ int main(int argc, char **argv)
 	 */
 	listen(sockfd, 1);
 
+	/* Create an array of connecting clients */
+	struct ClientInfo clients[MAX_CLIENTS];
+	int clientIndex = 0;	
+	for (; clientIndex < MAX_CLIENTS; clientIndex++) {
+		clients[clientIndex].connfd = -1;
+	}
+
 	for (;;) {
 		fd_set rfds;
 		struct timeval tv;
@@ -444,57 +452,82 @@ int main(int argc, char **argv)
 		/* Wait for five seconds. */
 		tv.tv_sec = 5;
 		tv.tv_usec = 0;
-		retval = select(sockfd + 1, &rfds, NULL, NULL, &tv);
+		retval = select(highestConnfd + 1, &rfds, NULL, NULL, &tv);
 
 		if (retval == -1) {
 			perror("select()");
 		} else if (retval > 0) {
-			/* Data is available, receive it. */
-			assert(FD_ISSET(sockfd, &rfds));
-
-			/* Copy to len, since recvfrom may change it. */
-			socklen_t len = (socklen_t) sizeof(client);
-
-			/* For TCP connectios, we first have to accept. */
-			int connfd;		
-			connfd = accept(sockfd, (struct sockaddr *) &client,
-									&len);
-			time_t now;
-			struct ClientInfo clientInfo;
-			clientInfo.connfd = connfd;			
-			clientInfo.time = time(&now);
-			clientInfo.socket = client;	
 			
-
-			for(;;) {
-				memset(&message, 0, sizeof(message));
-				/* Receive one byte less than declared,
-				   because it will be zero-termianted
-				   below. */
-				ssize_t n = read(connfd, message, sizeof(message) - 1);
-
-				/* Zero terminate the message, otherwise
-				   printf may access memory outside of the
-				   string. */
-				message[n] = '\0';
-				/* Print the message to stdout and flush. */
-				fprintf(stdout, "Received:\n%s\n", message);
-				fflush(stdout);
-
-				FILE *f = fopen("httpd.log", "a");
-				typeHandler(connfd, message, f, client);		 
+			/* Check if we have a new connecting client */
+			if (FD_ISSET(sockfd, &rfds)) {
+				socklen_t len = (socklen_t) sizeof(client);				
+				int connfd = accept(sockfd, (struct sockaddr *) &client, &len);
+				if (connfd > highestConnfd) {
+					highestConnfd = connfd;
+				}
+				/* Check if there is space for a new client */
+				int foundSpaceAtIndex = -1;
+				int ci = 0; // client index 
+				for(; ci < MAX_CLIENTS; ci++) {
+					if (clients[ci].connfd == -1) {
+						clients[ci].connfd = connfd;
+						time_t now;
+						clients[ci].time = time(&now);
+						clients[ci].socket = client;
+						foundSpaceAtIndex = ci;
+					}
+				}
 				
-				if (getPersistentConnection(message) == 0) {
-					fprintf(stdout, "Closing connection to : %d\n", connfd);
-					fflush(stdout);
+				/* If there is not space we close on the client */
+				if (foundSpaceAtIndex == -1) { 
 					shutdown(connfd, SHUT_RDWR);
 					close(connfd);	
-					fclose(f);
-					break;
 				} else {
-					fprintf(stdout, "Still talking to : %d\n", connfd);
-					fflush(stdout); 
+					memset(&message, 0, sizeof(message));
+					ssize_t n = read(connfd, message, sizeof(message) - 1);
+					message[n] = '\0';
+					FILE *f = fopen("httpd.log", "a");
+					typeHandler(connfd, message, f, client); // handle client's request
+					/* Check if the clients wants to keep the connection alive */
+					if (getPersistentConnection(message) == 1) {
+						time_t now;
+						clients[foundSpaceAtIndex].time = time(&now);
+					} else {
+						close(connfd);	
+						fclose(f);
+					}
 				}
+			}
+ 
+			/* Go throw all connected clients and handle their request */
+			int ci = 0; // client index 
+			for (; ci < MAX_CLIENTS; ci++) {
+				if (clients[ci].connfd > highestConnfd) {
+					highestConnfd = clients[ci].connfd;
+				}
+				/* Check if current client is active and is sending a request */
+				if (clients[ci].connfd != -1 && FD_ISSET(clients[ci].connfd, &rfds)) {
+					memset(&message, 0, sizeof(message));
+					ssize_t n = read(clients[ci].connfd, message, sizeof(message) - 1);
+					message[n] = '\0';
+					FILE *f = fopen("httpd.log", "a");
+					typeHandler(clients[ci].connfd, message, f, client); // handle client's request
+					/* Check if the clients wants to keep the connection alive */
+					if (getPersistentConnection(message) == 1) {
+						time_t now;
+						clients[ci].time = time(&now);
+					} else {
+						close(clients[ci].connfd);	
+						fclose(f);
+					}
+				}
+				
+				time_t now;
+				/* Throw out clients that have been inactive to more then CONNECTION TIME */
+				if (clients[ci].time - time(&now) >= CONNECTION_TIME) {
+					close(clients[ci].connfd);	
+					clients[ci].connfd = -1;
+				} 	
 			}
 		} else {
 			fprintf(stdout, "No message in five seconds.\n");
