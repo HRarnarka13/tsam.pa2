@@ -142,7 +142,7 @@ void headGenerator(char head[], char cookie[], int contentLength){
 	strcat(head, "Content-length: ");
 	strcat(head, c_contentLength);
 	// set the cookie
-	if (cookie) {
+	if (cookie[0] != '\0') {
 		strcat(head, "\r\n");
 		strcat(head, "Set-Cookie: ");
 		strcat(head, cookie);
@@ -212,6 +212,10 @@ void getBackgroundColor(char parameters[PARAMETER][PARAMETER], char bg[]){
 	}
 }
 
+/*
+ * This function generates the html to list the query parameters sent from the client
+ * examble : "bg=red" or "var=foo" 
+ */
 void generateHtmlParameters(char html[], char parameters[PARAMETER][PARAMETER]) {
 	strcat(html, "\n\t\t<ul>");
 	int j = 0;
