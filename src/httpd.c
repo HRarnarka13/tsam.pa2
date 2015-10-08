@@ -459,13 +459,14 @@ int main(int argc, char **argv)
 			int connfd;		
 			connfd = accept(sockfd, (struct sockaddr *) &client,
 									&len);
+			fprintf(stdout,"the connfd is: %d\n", connfd);
+			fflush(stdout);
 			time_t now;
 			struct ClientInfo clientInfo;
 			clientInfo.connfd = connfd;			
 			clientInfo.time = time(&now);
 			clientInfo.socket = client;	
 			
-
 			for(;;) {
 				memset(&message, 0, sizeof(message));
 				/* Receive one byte less than declared,
