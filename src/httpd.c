@@ -35,7 +35,7 @@
 #define VALUE 16
 #define COOKIE_SIZE 24
 #define MAX_CLIENTS 5
-#define CONNECTION_TIME 30
+#define CONNECTION_TIME 10
 
 struct ClientInfo {
 	int connfd; // if connfd is set to -1 then the client is inactive
@@ -320,7 +320,7 @@ void getHandler(int connfd, char url[], char bg[], int port, char IP[]){
  * It handles the types GET,POST and HEAD. For each type, the function calls
  * the appropriate type handler, creates a timestamp and logs to the httpd.log file.
  */
-void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client){
+void typeHandler(int connfd, char message[], struct sockaddr_in client){
 
 	char requestType[TYPE_SIZE];
 	char url[URL_SIZE];
@@ -373,7 +373,7 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
     char buf[sizeof "2011-10-08T07:07:09Z"];
     strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
 
-	//FILE *f = fopen("log.txt", "a");
+	FILE *f = fopen("log.txt", "a");
 	if (f == NULL) {
 		fprintf(stdout, "Error when opening log file");
 		fflush(stdout);
@@ -384,6 +384,7 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 		fprintf(f, "%s : ", url);
 		fprintf(f, "200 OK \n");
 	}
+	fclose(f);
 }
 
 int getPersistentConnection(char message[]) {
@@ -431,7 +432,7 @@ int main(int argc, char **argv)
 	/* Before we can accept messages, we have to listen to the port. We allow one
 	 * 1 connection to queue for simplicity.
 	 */
-	listen(sockfd, 1);
+	listen(sockfd, MAX_CLIENTS);
 
 	/* Create an array of connecting clients */
 	struct ClientInfo clients[MAX_CLIENTS];
@@ -447,13 +448,24 @@ int main(int argc, char **argv)
 
 		/* Check whether there is data on the socket fd. */
 		FD_ZERO(&rfds);
+		highestConnfd = sockfd;
 		FD_SET(sockfd, &rfds);
+		int ci = 0;
+		for (; ci < MAX_CLIENTS; ci++) {
+			if (clients[ci].connfd > highestConnfd) {
+				highestConnfd = clients[ci].connfd;
+			} 
+			if (clients[ci].connfd != -1) {
+				FD_SET(clients[ci].connfd, &rfds);
+			}
+		}		
 
 		/* Wait for five seconds. */
 		tv.tv_sec = 5;
 		tv.tv_usec = 0;
-		retval = select(highestConnfd + 1, &rfds, NULL, NULL, &tv);
 
+		retval = select(highestConnfd + 1, &rfds, NULL, NULL, &tv);
+	
 		if (retval == -1) {
 			perror("select()");
 		} else if (retval > 0) {
@@ -462,9 +474,6 @@ int main(int argc, char **argv)
 			if (FD_ISSET(sockfd, &rfds)) {
 				socklen_t len = (socklen_t) sizeof(client);				
 				int connfd = accept(sockfd, (struct sockaddr *) &client, &len);
-				if (connfd > highestConnfd) {
-					highestConnfd = connfd;
-				}
 				/* Check if there is space for a new client */
 				int foundSpaceAtIndex = -1;
 				int ci = 0; // client index 
@@ -475,26 +484,34 @@ int main(int argc, char **argv)
 						clients[ci].time = time(&now);
 						clients[ci].socket = client;
 						foundSpaceAtIndex = ci;
+						break;
 					}
 				}
 				
 				/* If there is not space we close on the client */
 				if (foundSpaceAtIndex == -1) { 
+					fprintf(stdout, "No space for more clients\n");
+					fflush(stdout);
 					shutdown(connfd, SHUT_RDWR);
 					close(connfd);	
 				} else {
+					fprintf(stdout, "NEW CLIENT : ");
+					fflush(stdout);
 					memset(&message, 0, sizeof(message));
 					ssize_t n = read(connfd, message, sizeof(message) - 1);
 					message[n] = '\0';
-					FILE *f = fopen("httpd.log", "a");
-					typeHandler(connfd, message, f, client); // handle client's request
+					typeHandler(connfd, message, client); // handle client's request
 					/* Check if the clients wants to keep the connection alive */
 					if (getPersistentConnection(message) == 1) {
+						fprintf(stdout, "Keep alive\n");
+						fflush(stdout);
 						time_t now;
 						clients[foundSpaceAtIndex].time = time(&now);
 					} else {
+						fprintf(stdout, "close\n");
+						fflush(stdout);
 						close(connfd);	
-						fclose(f);
+						clients[foundSpaceAtIndex].connfd = -1;
 					}
 				}
 			}
@@ -502,33 +519,44 @@ int main(int argc, char **argv)
 			/* Go throw all connected clients and handle their request */
 			int ci = 0; // client index 
 			for (; ci < MAX_CLIENTS; ci++) {
-				if (clients[ci].connfd > highestConnfd) {
-					highestConnfd = clients[ci].connfd;
-				}
 				/* Check if current client is active and is sending a request */
 				if (clients[ci].connfd != -1 && FD_ISSET(clients[ci].connfd, &rfds)) {
+					fprintf(stdout, "Our old friend : %d \n", clients[ci].connfd);
+					fflush(stdout);
 					memset(&message, 0, sizeof(message));
 					ssize_t n = read(clients[ci].connfd, message, sizeof(message) - 1);
 					message[n] = '\0';
-					FILE *f = fopen("httpd.log", "a");
-					typeHandler(clients[ci].connfd, message, f, client); // handle client's request
-					/* Check if the clients wants to keep the connection alive */
-					if (getPersistentConnection(message) == 1) {
-						time_t now;
-						clients[ci].time = time(&now);
-					} else {
+					fprintf(stdout, "Message : %s \n", message);
+					fprintf(stdout, "strlen(Message) : %d \n", (int) strlen(message));
+					fflush(stdout);		
+					if (strlen(message) == 0) {
 						close(clients[ci].connfd);	
-						fclose(f);
+						clients[ci].connfd = -1;
+ 					} else {
+						typeHandler(clients[ci].connfd, message, client); // handle client's request
+						/* Check if the clients wants to keep the connection alive */
+						if (getPersistentConnection(message) == 1) {
+							time_t now;
+							clients[ci].time = time(&now);
+						} else {
+							close(clients[ci].connfd);	
+							clients[ci].connfd = -1;
+						}
 					}
 				}
-				
 				time_t now;
+				int clientConnectionSec = (int) difftime(time(&now), clients[ci].time);
+				//fprintf(stdout, "client %d : %d sec \n", ci, clientConnectionSec);
+				//fflush(stdout);
 				/* Throw out clients that have been inactive to more then CONNECTION TIME */
-				if (clients[ci].time - time(&now) >= CONNECTION_TIME) {
+				if ( clientConnectionSec >= CONNECTION_TIME) {
 					close(clients[ci].connfd);	
 					clients[ci].connfd = -1;
 				} 	
 			}
+			fprintf(stdout, "ROUND DONE\n");
+			fflush(stdout);
+
 		} else {
 			fprintf(stdout, "No message in five seconds.\n");
 			fflush(stdout);
