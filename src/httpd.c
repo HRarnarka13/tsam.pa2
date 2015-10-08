@@ -35,6 +35,13 @@
 #define VALUE 16
 #define COOKIE_SIZE 24
 
+struct ClientInfo {
+	int connfd;
+	time_t time;
+	int keepAlive;
+	struct sockaddr_in socket; 
+};
+
 /**
  * This function gets the request method from the message
  * returns NULL if the request method is not supported 
@@ -149,7 +156,7 @@ void headGenerator(char head[], char cookie[], int contentLength){
  * color is a string like "bg=red"
  */
 void generateHtmlBody(char html[], char color[]) {
-	if (color) {
+	if (color[0] != '\0') {
 		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body");
 		strcat(html, " style='background-color:");
 
@@ -380,6 +387,16 @@ void typeHandler(int connfd, char message[], FILE *f, struct sockaddr_in client)
 	}
 }
 
+int getPersistentConnection(char message[]) {
+	char head[HEAD_MAX_SIZE];
+	memset(&head, 0, sizeof(head));
+	getHeadField(message, head);
+	if (strstr(head, "keep-alive") != NULL || strstr(head, "HTTP/1.1") != NULL) {
+		return 1;
+	} 
+	return 0;
+}
+
 /**
  * Main function, sets up and tears down a TCP connection.
  */
@@ -439,29 +456,46 @@ int main(int argc, char **argv)
 			socklen_t len = (socklen_t) sizeof(client);
 
 			/* For TCP connectios, we first have to accept. */
-			int connfd;
+			int connfd;		
 			connfd = accept(sockfd, (struct sockaddr *) &client,
-							&len);
+									&len);
+			time_t now;
+			struct ClientInfo clientInfo;
+			clientInfo.connfd = connfd;			
+			clientInfo.time = time(&now);
+			clientInfo.socket = client;	
+			
 
-			/* Receive one byte less than declared,
-			   because it will be zero-termianted
-			   below. */
-			ssize_t n = read(connfd, message, sizeof(message) - 1);
+			for(;;) {
+				memset(&message, 0, sizeof(message));
+				/* Receive one byte less than declared,
+				   because it will be zero-termianted
+				   below. */
+				ssize_t n = read(connfd, message, sizeof(message) - 1);
 
-			/* Zero terminate the message, otherwise
-			   printf may access memory outside of the
-			   string. */
-			message[n] = '\0';
-			/* Print the message to stdout and flush. */
-			fprintf(stdout, "Received:\n%s\n", message);
-			fflush(stdout);
+				/* Zero terminate the message, otherwise
+				   printf may access memory outside of the
+				   string. */
+				message[n] = '\0';
+				/* Print the message to stdout and flush. */
+				fprintf(stdout, "Received:\n%s\n", message);
+				fflush(stdout);
 
-			FILE *f = fopen("httpd.log", "a");
-			typeHandler(connfd, message, f, client);		 
-			// close the connection
-			shutdown(connfd, SHUT_RDWR);
-			close(connfd);	
-			fclose(f);
+				FILE *f = fopen("httpd.log", "a");
+				typeHandler(connfd, message, f, client);		 
+				
+				if (getPersistentConnection(message) == 0) {
+					fprintf(stdout, "Closing connection to : %d\n", connfd);
+					fflush(stdout);
+					shutdown(connfd, SHUT_RDWR);
+					close(connfd);	
+					fclose(f);
+					break;
+				} else {
+					fprintf(stdout, "Still talking to : %d\n", connfd);
+					fflush(stdout); 
+				}
+			}
 		} else {
 			fprintf(stdout, "No message in five seconds.\n");
 			fflush(stdout);
