@@ -60,7 +60,9 @@ void getRequestType(char request[], char message[]) {
 void getRequestUrl(char url[], char message[]) {
 	gchar ** split = g_strsplit(message, " ", -1);
 	strcat(url, "http://localhost");
-	strcat(url, split[1]);
+	if (split[1] != NULL) {
+		strcat(url, split[1]);
+	}
 	g_strfreev(split);
 }
 
@@ -108,9 +110,6 @@ void getParameters(char parameters[PARAMETER][PARAMETER], char queryString[]){
 		} else {
 			// g_array_append_val(parameters, splitAmpersand[i]);
 			strcpy(parameters[i], splitAmpersand[i]);
-			fprintf(stdout, "GetParameters \n");
-			fprintf(stdout, "parameters[%d] : %s \n", i, parameters[i]);
-			fflush(stdout);
 		}
 		i++;
 	}		
@@ -268,8 +267,6 @@ void postHandler(int connfd, char url[], char bg[],  int port, char IP[], char m
 		getParameters(parameters, queryString);
 	}
 	getDataField(message,data);
-	fprintf(stdout, "DATA : %s\n", data);
-	fflush(stdout);
 	generateHtmlBody(html, bg);
 	generateHtmlRequestInfo(html, url, IP, port);	
 	if (strchr(url, '?')) {
@@ -341,16 +338,13 @@ void typeHandler(int connfd, char message[], struct sockaddr_in client){
 	
 	char bg[20];
 	memset(&bg, 0, sizeof(bg));
-	
+	/* Check if the query string contains the bg varible, if so get the value for the background color */
 	if (strchr(url, '?')) {
 		getQueryString(url, queryString);
 		getParameters(parameters, queryString);
 		getBackgroundColor(parameters, bg);
-		
-		fprintf(stdout, "Contains PARAMETERS \n");
-		fflush(stdout);
 	}  
-
+	/* If the bg varible is not in the query string it is maybe set in the cookie */
 	if (bg[0] == '\0') {
 		getHeadField(message, head);
 		gchar ** split = g_strsplit(message, "Cookie:", -1);
@@ -361,22 +355,26 @@ void typeHandler(int connfd, char message[], struct sockaddr_in client){
 	}
 
 	if (strcmp(HTTP_GET, requestType) == 0) {
+		/* Handle get reqest from client */
 		getHandler(connfd, url, bg, client.sin_port, inet_ntoa(client.sin_addr));
 	} else if (strcmp(HTTP_POST, requestType) == 0) { 
+		/* Handle post reqest from client */
 		postHandler(connfd, url, bg, client.sin_port, inet_ntoa(client.sin_addr), message);
 	} else if (strcmp(HTTP_HEAD, requestType) == 0) {
+		/* Handle head reqest from client */
 		headHandler(connfd, bg);
 	} else {
 		fprintf(stdout, "Request type invalid!\n");
 		fflush(stdout);
 	}
 
-	/* Log request from user */
+	/* Get the current time on ISO 8601 format */
 	time_t now;                                        			
     time(&now);
     char buf[sizeof "2011-10-08T07:07:09Z"];
     strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
 
+	/* Log request from user */
 	FILE *f = fopen("log.txt", "a");
 	if (f == NULL) {
 		fprintf(stdout, "Error when opening log file");
@@ -391,6 +389,10 @@ void typeHandler(int connfd, char message[], struct sockaddr_in client){
 	fclose(f);
 }
 
+/*
+ * This function checks if the requst header of the client contains the subsrings "keep-alive"
+ * or "HTTP/1.1" indicating that he is requesting a persistent connection
+ * */
 int getPersistentConnection(char message[]) {
 	char head[HEAD_MAX_SIZE];
 	memset(&head, 0, sizeof(head));
@@ -457,7 +459,7 @@ int main(int argc, char **argv)
 		int ci = 0;
 		for (; ci < MAX_CLIENTS; ci++) {
 			if (clients[ci].connfd > highestConnfd) {
-				highestConnfd = clients[ci].connfd;
+				highestConnfd = clients[ci].connfd; // Update the highest connfd
 			} 
 			if (clients[ci].connfd != -1) {
 				FD_SET(clients[ci].connfd, &rfds);
@@ -483,6 +485,7 @@ int main(int argc, char **argv)
 				int ci = 0; // client index 
 				for(; ci < MAX_CLIENTS; ci++) {
 					if (clients[ci].connfd == -1) {
+						/* set the client in the empty spot */
 						clients[ci].connfd = connfd;
 						time_t now;
 						clients[ci].time = time(&now);
