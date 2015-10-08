@@ -155,6 +155,8 @@ void headGenerator(char head[], char cookie[], int contentLength){
  * color is a string like "bg=red"
  */
 void generateHtmlBody(char html[], char color[]) {
+	fprintf(stdout, "color: %s\n", color);
+	fflush(stdout); 
 	if (color[0] != '\0') {
 		strcat(html, "<!DOCTYPE html>\n<html>\n\t<body");
 		strcat(html, " style='background-color:");
