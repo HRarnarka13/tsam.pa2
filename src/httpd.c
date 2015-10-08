@@ -143,6 +143,8 @@ void headGenerator(char head[], char cookie[], int contentLength){
 	strcat(head, c_contentLength);
 	// set the cookie
 	if (cookie[0] != '\0') {
+		fprintf(stdout, "Inside headgenerator cookie: %s", cookie);
+		fflush(stdout);
 		strcat(head, "\r\n");
 		strcat(head, "Set-Cookie: ");
 		strcat(head, cookie);
@@ -269,14 +271,12 @@ void postHandler(int connfd, char url[], char bg[],  int port, char IP[], char m
 		getQueryString(url, queryString);
 		getParameters(parameters, queryString);
 	}
-	getDataField(message,data);
-	fprintf(stdout, "DATA : %s\n", data);
-	fflush(stdout);
 	generateHtmlBody(html, bg);
 	generateHtmlRequestInfo(html, url, IP, port);	
 	if (strchr(url, '?')) {
 		generateHtmlParameters(html, parameters);
 	}
+	getDataField(message,data);
 	generateHtmlData(html, data);
 	strcat(html, "\n\t</body>\n</html>\n");
 	headGenerator(head, bg, strlen(html));	
@@ -349,17 +349,24 @@ void typeHandler(int connfd, char message[], struct sockaddr_in client){
 		getParameters(parameters, queryString);
 		getBackgroundColor(parameters, bg);
 		
-		fprintf(stdout, "Contains PARAMETERS \n");
+		fprintf(stdout, "bg is: %s\n", bg);
 		fflush(stdout);
 	}  
 
 	if (bg[0] == '\0') {
 		getHeadField(message, head);
-		gchar ** split = g_strsplit(message, "Cookie:", -1);
-		if (split[1]) {
-			strcpy(bg, split[1]);
+		gchar ** split = g_strsplit(head, "Cookie: ", -1);
+		if(split[1] != NULL){
+			/* Here we split on backslash because the cookie that Postman
+			 * sends us is on the format: Cookie: bg=red\; and we want to
+			 * exclude the backslash and semicolon*/
+			gchar ** split2 = g_strsplit(split[1], "\\", -1);
+			g_strfreev(split);
+			if (split2[0]) {
+				strcat(bg, split2[0]);
+				g_strfreev(split2);
+			}
 		}
-		g_strfreev(split);
 	}
 
 	if (strcmp(HTTP_GET, requestType) == 0) {
@@ -532,9 +539,6 @@ int main(int argc, char **argv)
 					memset(&message, 0, sizeof(message));
 					ssize_t n = read(clients[ci].connfd, message, sizeof(message) - 1);
 					message[n] = '\0';
-					fprintf(stdout, "Message : %s \n", message);
-					fprintf(stdout, "strlen(Message) : %d \n", (int) strlen(message));
-					fflush(stdout);		
 					if (strlen(message) == 0) {
 						close(clients[ci].connfd);	
 						clients[ci].connfd = -1;
