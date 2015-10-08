@@ -108,17 +108,12 @@ void getParameters(char parameters[PARAMETER][PARAMETER], char queryString[]){
 		if(keyValue[0] == NULL || keyValue[1] == NULL){
 			break;
 		} else {
-			// g_array_append_val(parameters, splitAmpersand[i]);
 			strcpy(parameters[i], splitAmpersand[i]);
 		}
 		i++;
 	}		
 	g_strfreev(splitAmpersand);
 }
-/*
-void setCookie(){
-	
-}*/
 
 /**
  * This function generates a simple header.
@@ -149,6 +144,7 @@ void headGenerator(char head[], char cookie[], int contentLength){
 	/*The string \r\n\r\n distinguishes between the head and data field.*/
 	strcat(head, "\r\n\r\n");
 }
+
 /**
  * Html is the array to append the html code 
  * color is a string like "bg=red"
@@ -171,7 +167,7 @@ void generateHtmlBody(char html[], char color[]) {
 	}
 }
 
-/*
+/**
  * appends the html containg the url, ip address and port number of the request into
  * the html.
  */ 
@@ -335,6 +331,8 @@ void typeHandler(int connfd, char message[], struct sockaddr_in client){
 	getRequestType(requestType, message);
 	getRequestUrl(url, message);	
 	
+	fprintf(stdout, "Message is: \n%s\n", message);
+	fflush(stdout);
 	char bg[20];
 	memset(&bg, 0, sizeof(bg));
 	/* Check if the query string contains the bg varible, if so get the value for the background color */
@@ -346,18 +344,15 @@ void typeHandler(int connfd, char message[], struct sockaddr_in client){
 	/* If the bg varible is not in the query string it is maybe set in the cookie */
 	if (bg[0] == '\0') {
 		getHeadField(message, head);
+		fprintf(stdout, "Head is: %s\n", head);
+		fflush(stdout);
 		gchar ** split = g_strsplit(head, "Cookie: ", -1);
 		if(split[1] != NULL){
-			/* Here we split on backslash because the cookie that Postman
-			 * sends us is on the format: Cookie: bg=red\; and we want to
-			 * exclude the backslash and semicolon*/
-			gchar ** split2 = g_strsplit(split[1], "\\", -1);
-			g_strfreev(split);
-			if (split2[0]) {
-				strcat(bg, split2[0]);
-				g_strfreev(split2);
-			}
+			strcat(bg, split[1]);
+		} else {
+			bg[0] = '\0';
 		}
+		g_strfreev(split);
 	}
 
 	fprintf(stdout, "requestType: :%s:\n", requestType);
